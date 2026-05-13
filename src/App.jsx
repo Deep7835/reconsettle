@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import * as XLSX from "xlsx";
 
-const CHARGE_RATE = 0.35;
-const GST_RATE = 28;
-const GST_OPTIONS = [5, 12, 18, 28];
+const CHARGE_RATE = 0.41;
+const GST_RATE = 0;
+const GST_OPTIONS = [0, 5, 12, 18, 28];
 
 const MASTER_DATA = [
   { mid: "MER0000000030641", merchant: "Aryan", company: "ECOMPANTHER SOLUTION PRIVATE LIMITED", moa: "DONE", incorporation: "19-05-2025", gstNumber: "05AAICE9033A1Z1" },
@@ -54,7 +54,7 @@ const MASTER_DATA = [
   { mid: "MER0000000030980", merchant: "Aryan", company: "ERYNTAL TRADING PRIVATE LIMITED", moa: "", incorporation: "12-12-2025", gstNumber: "07AAJCE3347E1ZR" },
   { mid: "MER0000000030984", merchant: "Shashi", company: "SALESDOME TECHNOLOGIES PVT LTD", moa: "DONE", incorporation: "04-06-2025", gstNumber: "07ABNCS6674F1ZT" },
   { mid: "MER0000000030986", merchant: "Shashi", company: "YAZO INFOTECH PRIVATE LIMITED", moa: "DONE", incorporation: "23-07-2024", gstNumber: "09AABCY8713E1Z7" },
-  { mid: "MER0000000030988", merchant: "Aryan", company: "SIREPLES INDIA PRIVATE LIMITED", moa: "DONE", incorporation: "27-02-2025", gstNumber: "08ABPCS3115B1ZJ" },
+  { mid: "MER0000000030988", merchant: "Shashi", company: "SIREPLES INDIA PRIVATE LIMITED", moa: "DONE", incorporation: "27-02-2025", gstNumber: "08ABPCS3115B1ZJ" },
   { mid: "MER0000000030989", merchant: "Aryan", company: "PAYMOND SERVICES PRIVATE LIMITED", moa: "DONE", incorporation: "24-05-2022", gstNumber: "10AAMCP9293R1Z1" },
   { mid: "MER0000000031040", merchant: "Shashi", company: "TRUEWIN INFOTECH PRIVATE LIMITED", moa: "", incorporation: "14-08-2025", gstNumber: "09AAMCT1689B1Z2" },
   { mid: "MER0000000031041", merchant: "Aryan", company: "ALTRIX AGRO FARM PRIVATE LIMITED", moa: "", incorporation: "03-02-2025", gstNumber: "27ABCCA1114D1ZF" },
@@ -65,7 +65,7 @@ const MASTER_DATA = [
   { mid: "MER0000000031061", merchant: "Shashi", company: "OMAIMZ MARKETING PRIVATE LIMITED", moa: "", incorporation: "18-02-2025", gstNumber: "27AAECO6117H1ZG" },
   { mid: "MER0000000031062", merchant: "Shashi", company: "INNOVATORS MARINE PRIVATE LIMITED", moa: "DONE", incorporation: "19-12-2025", gstNumber: "27A ACCI1924J1ZM" },
   { mid: "MER0000000031063", merchant: "Shashi", company: "CODEVA SOLUTIONS PRIVATE LIMITED", moa: "DONE", incorporation: "25-07-2025", gstNumber: "27AAMCC9338A1ZL" },
-  { mid: "MER0000000031064", merchant: "Shashi", company: "Felunor Supplier Private Limited", moa: "DONE", incorporation: "17-09-2025", gstNumber: "07AAGCF6262L1ZA" },
+  { mid: "MER0000000031064", merchant: "Shashi", company: "FELUNOR SUPPLIER PRIVATED LIMITED", moa: "DONE", incorporation: "17-09-2025", gstNumber: "07AAGCF6262L1ZA" },
   { mid: "MER0000000031065", merchant: "Shashi", company: "WEARHOUSE PRIVATE LIMITED", moa: "", incorporation: "04-12-2025", gstNumber: "09AAECW3023G1ZH" },
   { mid: "MER0000000031068", merchant: "Nilesh", company: "TRANSACTGRID TECHNOLOGIES PRIVATE LIMITED", moa: "", incorporation: "10-12-2025", gstNumber: "27AAMCT5447R1ZB" },
   { mid: "MER0000000031069", merchant: "Nilesh", company: "WEB STORE PRIVATE LIMITED", moa: "", incorporation: "18-02-2025", gstNumber: "24AAECW0363M1Z7" },
@@ -77,7 +77,7 @@ const MASTER_DATA = [
   { mid: "", merchant: "Sachin", company: "BARRINGER", moa: "", incorporation: "23-04-2008", gstNumber: "" },
   { mid: "", merchant: "Maheeps", company: "CYROTECH PRIVATE LIMITED", moa: "", incorporation: "18-12-2024", gstNumber: "27AAMCC3002B1ZA" },
   { mid: "", merchant: "Maheeps", company: "MINIZONE FINTECH LLP.", moa: "", incorporation: "17-11-2024", gstNumber: "09ACCFM1690E1ZA" },
-  { mid: "", merchant: "Nilesh", company: "ONESTOP SHOPPING STATION PVT LTD", moa: "", incorporation: "02-12-2023", gstNumber: "24AAECO2407J1ZO" },
+  { mid: "", merchant: "Nilesh", company: "ONE STOP SHOPPING STATION PVT LTD", moa: "", incorporation: "", gstNumber: "" },
   { mid: "", merchant: "Aryan", company: "OSILA SOLUTION PRIVATE LIMITED", moa: "DONE", incorporation: "18-04-2025", gstNumber: "27AAECO4832D1ZM" },
   { mid: "", merchant: "Aryan", company: "RJ PAPILLON MULTITRADE PRIVATE LIMITED", moa: "DONE", incorporation: "01-11-2018", gstNumber: "27AAJCR2324N1Z2" },
   { mid: "", merchant: "Maheeps", company: "RUPEECARE", moa: "", incorporation: "30-08-2022", gstNumber: "27ABFFR6242P1ZL" },
@@ -112,7 +112,7 @@ const MASTER_DATA = [
   { mid: "MER0000000031131", merchant: "Nilesh", company: "ORIVENTA PRIVATE LIMITED", moa: "", incorporation: "17-10-2025", gstNumber: "08AAECO9143M1ZX" },
   { mid: "MER0000000031170", merchant: "Nilesh", company: "ZELTRIUM TECHNOLOGY PRIVATE LIMITED", moa: "", incorporation: "30-12-2025", gstNumber: "33AACCZ8531E1ZE" },
   { mid: "MER0000000031128", merchant: "Nilesh", company: "ARKABYTE DATA SOLUTIONS PRIVATE LIMITED", moa: "DONE", incorporation: "16-05-2025", gstNumber: "19ABCCA9267H1ZA" },
-  { mid: "MER0000000031153", merchant: "AK", company: "JOVLERA TECHNOLOGY PRIVATE LIMITED", moa: "", incorporation: "06-12-2025", gstNumber: "07AAHCJ1595M1Z1" },
+  { mid: "MER0000000031153", merchant: "AK", company: "JOVLERA TRADING PRIVATE LIMITED", moa: "", incorporation: "06-12-2025", gstNumber: "07AAHCJ1595M1Z1" },
   { mid: "MER0000000031136", merchant: "AJ", company: "STPK SERVICES PRIVATE LIMITED", moa: "", incorporation: "25-02-2025", gstNumber: "09ABPCS3882F1ZR" },
   { mid: "MER0000000031159", merchant: "Nilesh", company: "AIVEX DIGITAL SOLUTIONS PRIVATE LIMITED", moa: "", incorporation: "10-02-2026", gstNumber: "33ABECA8639F1ZO" },
   { mid: "MER0000000031158", merchant: "Nilesh", company: "GAYTI INFRATECH PRIVATE LIMITED", moa: "DONE", incorporation: "22-09-2025", gstNumber: "09AAMCG3937B2ZJ" },
@@ -184,7 +184,7 @@ const MASTER_DATA = [
   { mid: "MER0000000031280", merchant: "AJ", company: "DYMA INFOTECH PRIVATE LIMITED", moa: "", incorporation: "13-10-2025", gstNumber: "07AAMCD1083H1ZM" },
   { mid: "MER0000000031279", merchant: "AJ", company: "KAVYANSH ENTREPRISES PRIVATE LIMITED", moa: "", incorporation: "08-04-2024", gstNumber: "07AAKCK9401A1ZT" },
   { mid: "", merchant: "Rishabh", company: "UDTEJJ DIGITAL SOLUTIONS PRIVATE LIMITED", moa: "", incorporation: "23-01-2026", gstNumber: "36AAECU0606R1Z0" },
-  { mid: "", merchant: "AJ", company: "PHENOX AEROSPACE INDIA PRIVATE LIMITED", moa: "", incorporation: "10-04-2024", gstNumber: "07AAOCP6508R1ZJ" },
+  { mid: "", merchant: "AJ", company: "PHENOX AEROSPACE  INDIA PRIVATE LIMITED", moa: "", incorporation: "10-04-2024", gstNumber: "07AAOCP6508R1ZJ" },
   { mid: "MER0000000031274", merchant: "Nilesh", company: "BARAI AND BISWAS TECHNOLOGY PRIVATE LIMITED", moa: "", incorporation: "23-02-2025", gstNumber: "19AANCB2729H1ZF" },
   { mid: "", merchant: "KJ", company: "PVKA SOFTWARE PRIVATE LIMITED", moa: "", incorporation: "08-02-2025", gstNumber: "08AAPCP4233N1ZU" },
   { mid: "MER0000000031281", merchant: "AJ", company: "PIONEERS HUB PRIVATE LIMITED", moa: "", incorporation: "23-12-2025", gstNumber: "27AAQCP5030Q1ZQ" },
@@ -194,6 +194,60 @@ const MASTER_DATA = [
   { mid: "", merchant: "Nilesh", company: "DIPRATA TECHONOLOGY PRIVATE LIMITED", moa: "", incorporation: "25-07-2024", gstNumber: "19AALCD0162E1ZU" },
   { mid: "", merchant: "Nilesh", company: "KSHIRA FIN PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "36AALCK1084E1ZK" },
   { mid: "", merchant: "AJ", company: "BARRINGER PHARMA PRIVATE LIMITED", moa: "", incorporation: "23-04-2018", gstNumber: "07AAHCB7897G1Z5" },
+  { mid: "", merchant: "Nilesh", company: "KKBM ENTERPRISES PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "VALTARA SALES AND DISTRIBUTION PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "AZUP INNOVATION PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "MONTJAVE VENTURES PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "ZIRK TOWN MART PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "DEALDROP TECHNOLOGIES PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "AJ", company: "YAKSHAN DIGITECH PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "AJ", company: "PEGYOU TRADEMART PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "AJ", company: "GODAVARY BIZTECH PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "AJ", company: "LOGISQUIRE SOLUTIONS PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "CLICKFUSION TECHNOLOGIES PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "AJ", company: "SAVARIYAAN TECHNORAFT PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "WNY IT SERVICES PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "VELCYNTRA TECHNOLOGIES PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "SHIMSHA TECHNOLOGY PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "AJ", company: "ELANINE TRADE ENTERPRISES PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "AJ", company: "PARCENTO SOLUTIONS PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "RMVS SALES AND MARKETING PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "ORIZONTEX TECHNOLOGIES PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "VIBEZWEAR TECHNOLOGY PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "ZENFIT TECHNOLOGY PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "AJ", company: "ECOMMXCEL VENTURE PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "RONAM SOLUTION PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Aryan", company: "AKPRAS INFOTECH SYSTEM PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Aryan", company: "FABRICPORT INDIA PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "KHATU TECHNOLOGY PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "CRYSTALBYTE TECHNOLOGIES PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "SYNTHETICS E COM SOLUTIONS PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Aryan", company: "AVISHKKAR CATERING PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "PRSNB ENTERPRISES PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "RAYTWIN SOLUTION PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "VRINDAVAN DIGITAL MARKETING PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "BOKARO GLOBAL TRADER PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "MANOHIT TESHNI MEDIA SOLUTIONS PRIVATE ILIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Aryan", company: "MEDEDTECH GLOBAL SOLUTIONS PRIVATE LIMITES", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Aryan", company: "SALTION ELECTRONICS ECOM PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "TECHBRIGHT TECHNOLOGIES PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "SHARTEJI TECHNOLOGY PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Aryan", company: "DHRUVIKA WORKFORCE PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Aryan", company: "OPULENT METAL WORKS PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "ELITEVERGE TECHNOLOGY PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Aryan", company: "FORGEFLOW IRONWORKS PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "AJ", company: "RUDRA FOOD & BEVERAGE PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "AJ", company: "SKILLION PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "ZERIVOX LOGISTICS PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "VASTRAKRITI RETAIL PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "REFIONTEX COM PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "ADBLOWZ SOLUTION PRIVATE LIMTED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "KLYRA TECHONOLOGIES PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "WHITEBOX SPORTS AND ENTERTAINMENT PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Aryan", company: "ULTRIXA ECOMTECH PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "BROWWW TECHNOLOGY PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "AETHERION TECHNOLOGY PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "Nilesh", company: "RELICSPHERE PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
 ];
 
 const ALL_MERCHANTS = [...new Set(MASTER_DATA.map((d) => d.merchant))].sort();
@@ -314,6 +368,16 @@ export default function App() {
   const [entryDate, setEntryDate] = useState(""); // "" = today
   const [dlFrom, setDlFrom] = useState("");
   const [dlTo, setDlTo] = useState("");
+  // Bank statement upload state
+  const [bankFile, setBankFile] = useState("");
+  const [bankRows, setBankRows] = useState([]); // raw rows per company from bank file
+  const [bankError, setBankError] = useState("");
+  const [bankDragging, setBankDragging] = useState(false);
+  // Source/internal payin upload state (just Name + Sum of Amount per company)
+  const [sourceFile, setSourceFile] = useState("");
+  const [sourceRows, setSourceRows] = useState([]);
+  const [sourceError, setSourceError] = useState("");
+  const [sourceDragging, setSourceDragging] = useState(false);
   const [mSearch, setMSearch] = useState("");
   const [mFilter, setMFilter] = useState("__all__");
   const [mMoaFilter, setMMoaFilter] = useState("__all__");
@@ -489,6 +553,7 @@ export default function App() {
       return;
     }
 
+    const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
     const data = filtered.map((r) => {
       const iso = getRowDate(r);
       const cycleMeta = CYCLE_META[r.cycle] || CYCLE_META[1];
@@ -499,12 +564,12 @@ export default function App() {
         "To Date": fmtDate(iso),
         "Payin Start Time": cycleMeta.start,
         "Payin End Time": cycleMeta.end,
-        Payin: r.payin,
-        "Merchant Fee": r.charge,
-        GST: r.gst,
-        "Merchant Settle Amount": merchantSettle,
-        "Chargeback Received": r.chargeback || 0,
-        "Net Merchant Settlement": r.settlement,
+        Payin: r2(r.payin),
+        "Merchant Fee": r2(r.charge),
+        GST: r2(r.gst),
+        "Merchant Settle Amount": r2(merchantSettle),
+        "Chargeback Received": r2(r.chargeback || 0),
+        "Net Merchant Settlement": r2(r.settlement),
       };
     });
     // Use filtered rows for totals
@@ -527,12 +592,12 @@ export default function App() {
       "To Date": "",
       "Payin Start Time": "",
       "Payin End Time": "",
-      Payin: totals.payin,
-      "Merchant Fee": totals.charge,
-      GST: totals.gst,
-      "Merchant Settle Amount": totals.merchantSettle,
-      "Chargeback Received": totals.chargeback,
-      "Net Merchant Settlement": totals.settlement,
+      Payin: r2(totals.payin),
+      "Merchant Fee": r2(totals.charge),
+      GST: r2(totals.gst),
+      "Merchant Settle Amount": r2(totals.merchantSettle),
+      "Chargeback Received": r2(totals.chargeback),
+      "Net Merchant Settlement": r2(totals.settlement),
     });
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -549,6 +614,19 @@ export default function App() {
       { wch: 20 },
       { wch: 24 },
     ];
+    // Apply 2-decimal money format to columns F..K (Payin through Net Merchant Settlement)
+    const moneyCols = ["F", "G", "H", "I", "J", "K"];
+    const numFmt = "#,##0.00";
+    for (let row = 2; row <= data.length + 1; row++) {
+      for (const col of moneyCols) {
+        const ref = col + row;
+        const cell = ws[ref];
+        if (cell && typeof cell.v === "number") {
+          cell.z = numFmt;
+          cell.t = "n";
+        }
+      }
+    }
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Settlements");
     const ts = new Date().toISOString().slice(0, 10);
@@ -732,6 +810,627 @@ export default function App() {
       totalSettlement: selected.reduce((s, r) => s + r.settlement, 0),
     };
   }, [uploadData, uploadSelected]);
+
+  // Bank statement upload (settlement summary per company)
+  const BANK_FIELDS = {
+    mid: ["merchantsid", "merchant id", "mid", "merchant_id"],
+    name: ["name", "company", "company name", "merchant name", "row labels"],
+    count: ["count of amount", "count", "txn count", "transaction count", "no of txn"],
+    amount: ["sum of amount2", "sum of amount", "payin", "amount", "total amount", "gross", "sum of payin"],
+    fee: ["sum of merchant fee", "merchant fee", "fee", "fees", "charge", "charges", "mdr"],
+    gst: ["sum of gst", "gst", "tax"],
+    settle: ["sum of merchant settle amount", "merchant settle amount", "settle amount", "sum of settle"],
+    chargeback: ["chargeback received", "chargeback", "cb", "chargebacks", "refund", "refunds"],
+    netSettle: ["net merchant settlement", "net merchant settle", "net merchant settlement amount", "net settle", "net settlement", "net amount"],
+  };
+
+  // Normalize a company name: strip "private limited" / "pvt ltd" variants,
+  // common typos ("privated", "limte..."), punctuation, and collapse spaces.
+  const normCompany = (s) => String(s || "").toLowerCase()
+    .replace(/\b(priv\w*|pvt\w*|ltd\w*|limited|limte\w*|opc|llp)\.?\b/g, "")
+    .replace(/[.,&()]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // Levenshtein distance — used as a final fuzzy-match fallback for company names
+  // that differ by a typo or singular/plural ("Enterprise" vs "Enterprises", "Axiomix" vs "Axiomixx").
+  const lev = (a, b) => {
+    if (a === b) return 0;
+    if (!a.length) return b.length;
+    if (!b.length) return a.length;
+    const dp = new Array(b.length + 1);
+    for (let j = 0; j <= b.length; j++) dp[j] = j;
+    for (let i = 1; i <= a.length; i++) {
+      let prev = dp[0]; dp[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const tmp = dp[j];
+        dp[j] = a[i - 1] === b[j - 1]
+          ? prev
+          : 1 + Math.min(prev, dp[j], dp[j - 1]);
+        prev = tmp;
+      }
+    }
+    return dp[b.length];
+  };
+
+  // Find the best master-data company match for `name`, with progressive fallbacks:
+  // 1) exact match (case-insensitive)
+  // 2) normalized match (strips "private limited"/punctuation/typos)
+  // 3) Levenshtein-based fuzzy match (distance ≤ 2 for short names, ≤ ceil(len*0.18) otherwise)
+  const findMasterByCompany = (name) => {
+    if (!name) return null;
+    const lower = name.toLowerCase();
+    let m = MASTER_DATA.find((d) => d.company.toLowerCase() === lower);
+    if (m) return m;
+    const nn = normCompany(name);
+    if (!nn) return null;
+    m = MASTER_DATA.find((d) => normCompany(d.company) === nn);
+    if (m) return m;
+    // Fuzzy: closest by Levenshtein within tolerance
+    const tolerance = Math.max(2, Math.ceil(nn.length * 0.18));
+    let best = null;
+    let bestDist = tolerance + 1;
+    for (const d of MASTER_DATA) {
+      const dn = normCompany(d.company);
+      if (!dn) continue;
+      // Skip very different lengths early
+      if (Math.abs(dn.length - nn.length) > tolerance) continue;
+      const dist = lev(nn, dn);
+      if (dist < bestDist) { bestDist = dist; best = d; }
+    }
+    return best;
+  };
+
+  // Parse "57,88,735" / "₹ 1,234.50" / 100 → 5788735 / 1234.5 / 100.
+  // Strips commas, spaces, currency symbols, and any non-numeric chars before parseFloat.
+  const parseAmount = (v) => {
+    if (typeof v === "number") return v;
+    if (v == null) return 0;
+    const cleaned = String(v).replace(/[,\s₹$]/g, "").replace(/[^0-9.\-]/g, "");
+    const n = parseFloat(cleaned);
+    return isNaN(n) ? 0 : n;
+  };
+
+  // Pick the first sheet that has parseable data. Excel exports often have an empty
+  // "Sheet1" before the actual pivot/data sheet ("Company Amounts", etc.).
+  const pickDataSheet = (wb) => {
+    for (const name of wb.SheetNames) {
+      const ws = wb.Sheets[name];
+      const range = ws && ws["!ref"];
+      if (!range) continue;
+      const json = XLSX.utils.sheet_to_json(ws, { defval: "", header: 1 });
+      // Need at least 2 rows (header + 1 data) with some content
+      const nonEmpty = json.filter((r) => r.some((c) => c !== "" && c != null));
+      if (nonEmpty.length >= 2) return ws;
+    }
+    return wb.Sheets[wb.SheetNames[0]];
+  };
+
+  const matchBankCol = (header) => {
+    const h = String(header || "").toLowerCase().trim();
+    if (!h) return null;
+    let best = null;
+    let bestScore = 0;
+    for (const [key, patterns] of Object.entries(BANK_FIELDS)) {
+      for (const p of patterns) {
+        let score = 0;
+        if (h === p) score = 1000 + p.length;          // exact match — top priority
+        else if (h.includes(p)) score = p.length;       // header contains the pattern
+        else if (p.includes(h)) score = h.length * 0.5; // pattern contains the header
+        if (score > bestScore) { bestScore = score; best = key; }
+      }
+    }
+    return best;
+  };
+
+  const parseBankFile = useCallback((file) => {
+    setBankError("");
+    setBankRows([]);
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (!["csv", "xlsx", "xls"].includes(ext)) {
+      setBankError("Unsupported file type. Please upload a CSV or Excel file.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: "array" });
+        const ws = pickDataSheet(wb);
+        const json = XLSX.utils.sheet_to_json(ws, { defval: "", header: 1 });
+        // Find header row: first row that contains a column matching "name" or "mid"
+        let headerIdx = -1;
+        let mapping = {};
+        for (let i = 0; i < Math.min(json.length, 10); i++) {
+          const candidate = {};
+          (json[i] || []).forEach((h, idx) => {
+            const k = matchBankCol(h);
+            if (k && !candidate[k]) candidate[k] = idx;
+          });
+          if (candidate.name != null && (candidate.amount != null || candidate.settle != null || candidate.netSettle != null)) {
+            headerIdx = i;
+            mapping = candidate;
+            break;
+          }
+        }
+        if (headerIdx === -1) {
+          setBankError("Could not find a header row with company Name and Settlement/Amount columns.");
+          return;
+        }
+        const out = [];
+        for (let r = headerIdx + 1; r < json.length; r++) {
+          const row = json[r] || [];
+          // Stop at Grand Total — bank files often stack a second pivot below it
+          // which would otherwise be re-parsed and double-count every merchant.
+          // The label can appear in the merchantsId column (col 0) or the Name column.
+          const rowText = row.map((c) => String(c || "").trim()).join(" | ");
+          if (/(^|\|\s*)grand\s*total(\s*\||$)/i.test(rowText)) break;
+          const name = String(row[mapping.name] || "").trim();
+          if (!name) continue;
+          if (/^total$/i.test(name)) break;
+          const mid = mapping.mid != null ? String(row[mapping.mid] || "").trim() : "";
+          const count = parseAmount(row[mapping.count]) || 0;
+          const amount = parseAmount(row[mapping.amount]) || 0;
+          const fee = parseAmount(row[mapping.fee]) || 0;
+          const gst = parseAmount(row[mapping.gst]) || 0;
+          const settle = parseAmount(row[mapping.settle]) || (amount - fee - gst);
+          const chargeback = mapping.chargeback != null ? (parseAmount(row[mapping.chargeback]) || 0) : 0;
+          const netSettle = mapping.netSettle != null
+            ? (parseAmount(row[mapping.netSettle]) || (settle - chargeback))
+            : (settle - chargeback);
+          if (amount <= 0 && settle <= 0) continue;
+          // Lookup parent merchant: prefer MID, then exact / normalized / fuzzy company match
+          let master = mid ? MASTER_DATA.find((d) => d.mid && d.mid.toLowerCase() === mid.toLowerCase()) : null;
+          if (!master) master = findMasterByCompany(name);
+          out.push({
+            mid,
+            name,
+            merchant: master ? master.merchant : "Unmatched",
+            matched: !!master,
+            count,
+            amount,
+            fee,
+            gst,
+            settle,
+            chargeback,
+            netSettle,
+          });
+        }
+        if (out.length === 0) {
+          setBankError("No data rows found in the file.");
+          return;
+        }
+        setBankRows(out);
+        setBankFile(file.name);
+      } catch (err) {
+        setBankError("Failed to parse file: " + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }, []);
+
+  const handleBankDrop = useCallback((e) => {
+    e.preventDefault();
+    setBankDragging(false);
+    const file = e.dataTransfer?.files?.[0] || e.target?.files?.[0];
+    if (file) parseBankFile(file);
+  }, [parseBankFile]);
+
+  const handleBankInput = useCallback((e) => {
+    const f = e.target.files?.[0];
+    if (f) parseBankFile(f);
+  }, [parseBankFile]);
+
+  const clearBank = () => {
+    setBankRows([]);
+    setBankFile("");
+    setBankError("");
+  };
+
+  // ---- Source / internal payin file parsing (Name + Sum of Amount per company) ----
+  const parseSourceFile = useCallback((file) => {
+    setSourceError("");
+    setSourceRows([]);
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (!["csv", "xlsx", "xls"].includes(ext)) {
+      setSourceError("Unsupported file type. Please upload a CSV or Excel file.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const wb = XLSX.read(data, { type: "array" });
+        const ws = pickDataSheet(wb);
+        const json = XLSX.utils.sheet_to_json(ws, { defval: "", header: 1 });
+        // Find header row: name + amount
+        let headerIdx = -1;
+        let mapping = {};
+        for (let i = 0; i < Math.min(json.length, 10); i++) {
+          const candidate = {};
+          (json[i] || []).forEach((h, idx) => {
+            const k = matchBankCol(h);
+            if (k && candidate[k] == null) candidate[k] = idx;
+          });
+          if (candidate.name != null && candidate.amount != null) {
+            headerIdx = i;
+            mapping = candidate;
+            break;
+          }
+        }
+        if (headerIdx === -1) {
+          setSourceError("Could not find a header row with company Name and Amount columns.");
+          return;
+        }
+        const out = [];
+        for (let r = headerIdx + 1; r < json.length; r++) {
+          const row = json[r] || [];
+          const rowText = row.map((c) => String(c || "").trim()).join(" | ");
+          if (/(^|\|\s*)grand\s*total(\s*\||$)/i.test(rowText)) break;
+          const name = String(row[mapping.name] || "").trim();
+          if (!name) continue;
+          if (/^total$/i.test(name)) break;
+          const amount = parseAmount(row[mapping.amount]) || 0;
+          const count = mapping.count != null ? (parseAmount(row[mapping.count]) || 0) : 0;
+          if (amount <= 0) continue;
+          // Match company → parent merchant (exact / normalized / fuzzy)
+          const master = findMasterByCompany(name);
+          out.push({
+            name,
+            merchant: master ? master.merchant : "Unmatched",
+            matched: !!master,
+            count,
+            amount,
+          });
+        }
+        if (out.length === 0) {
+          setSourceError("No data rows found in the file.");
+          return;
+        }
+        setSourceRows(out);
+        setSourceFile(file.name);
+      } catch (err) {
+        setSourceError("Failed to parse file: " + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }, []);
+
+  const handleSourceDrop = useCallback((e) => {
+    e.preventDefault();
+    setSourceDragging(false);
+    const file = e.dataTransfer?.files?.[0] || e.target?.files?.[0];
+    if (file) parseSourceFile(file);
+  }, [parseSourceFile]);
+
+  const handleSourceInput = useCallback((e) => {
+    const f = e.target.files?.[0];
+    if (f) parseSourceFile(f);
+  }, [parseSourceFile]);
+
+  const clearSource = () => {
+    setSourceRows([]);
+    setSourceFile("");
+    setSourceError("");
+  };
+
+  // Aggregate source rows by parent merchant
+  const sourceByMerchant = useMemo(() => {
+    if (sourceRows.length === 0) return new Map();
+    const groups = new Map();
+    sourceRows.forEach((r) => {
+      const key = r.merchant || "Unmatched";
+      if (!groups.has(key)) groups.set(key, { merchant: key, companies: 0, count: 0, amount: 0, unmatched: 0 });
+      const g = groups.get(key);
+      g.companies += 1;
+      g.count += r.count;
+      g.amount += r.amount;
+      if (!r.matched) g.unmatched += 1;
+    });
+    return groups;
+  }, [sourceRows]);
+
+  // Aggregate bank rows by parent merchant + recompute using our rates
+  const bankByMerchant = useMemo(() => {
+    if (bankRows.length === 0) return [];
+    const groups = {};
+    bankRows.forEach((r) => {
+      const key = r.merchant || "Unmatched";
+      if (!groups[key]) groups[key] = { merchant: key, companies: 0, count: 0, amount: 0, fee: 0, gst: 0, settle: 0, chargeback: 0, netSettle: 0, unmatched: 0, rows: [] };
+      const g = groups[key];
+      g.companies += 1;
+      g.count += r.count;
+      g.amount += r.amount;
+      g.fee += r.fee;
+      g.gst += r.gst;
+      g.settle += r.settle;
+      g.chargeback += r.chargeback || 0;
+      g.netSettle += r.netSettle || (r.settle - (r.chargeback || 0));
+      if (!r.matched) g.unmatched += 1;
+      g.rows.push(r);
+    });
+    return Object.values(groups).map((g) => {
+      const ourFee = (g.amount * CHARGE_RATE) / 100;
+      const ourGst = (ourFee * GST_RATE) / 100;
+      const ourSettle = g.amount - ourFee - ourGst;
+      const ourNet = ourSettle - g.chargeback;
+      const diff = g.netSettle - ourNet;
+      return { ...g, ourFee, ourGst, ourSettle, ourNet, diff };
+    }).sort((a, b) => b.amount - a.amount);
+  }, [bankRows]);
+
+  const bankTotals = useMemo(() => {
+    return bankByMerchant.reduce((s, g) => ({
+      companies: s.companies + g.companies,
+      count: s.count + g.count,
+      amount: s.amount + g.amount,
+      fee: s.fee + g.fee,
+      gst: s.gst + g.gst,
+      settle: s.settle + g.settle,
+      chargeback: s.chargeback + g.chargeback,
+      netSettle: s.netSettle + g.netSettle,
+      ourSettle: s.ourSettle + g.ourSettle,
+      ourNet: s.ourNet + g.ourNet,
+      diff: s.diff + g.diff,
+      unmatched: s.unmatched + g.unmatched,
+    }), { companies: 0, count: 0, amount: 0, fee: 0, gst: 0, settle: 0, chargeback: 0, netSettle: 0, ourSettle: 0, ourNet: 0, diff: 0, unmatched: 0 });
+  }, [bankByMerchant]);
+
+  // Combined view: bank rows joined with source-payin rows by merchant, with payin difference.
+  // Merchants present in only one side still appear in the table (other side shows 0).
+  const combinedByMerchant = useMemo(() => {
+    const map = new Map();
+    bankByMerchant.forEach((g) => {
+      map.set(g.merchant, { ...g, sourcePayin: 0, sourceCompanies: 0, sourceCount: 0, sourceUnmatched: 0, hasBank: true });
+    });
+    sourceByMerchant.forEach((s, key) => {
+      const existing = map.get(key);
+      if (existing) {
+        existing.sourcePayin = s.amount;
+        existing.sourceCompanies = s.companies;
+        existing.sourceCount = s.count;
+        existing.sourceUnmatched = s.unmatched;
+      } else {
+        // Merchant only in source file
+        map.set(key, {
+          merchant: key,
+          companies: 0, count: 0, amount: 0, fee: 0, gst: 0, settle: 0, chargeback: 0, netSettle: 0,
+          ourFee: 0, ourGst: 0, ourSettle: 0, ourNet: 0, diff: 0, unmatched: 0, rows: [],
+          sourcePayin: s.amount, sourceCompanies: s.companies, sourceCount: s.count, sourceUnmatched: s.unmatched,
+          hasBank: false,
+        });
+      }
+    });
+    // Compute payin difference (source − bank)
+    map.forEach((g) => { g.payinDiff = (g.sourcePayin || 0) - (g.amount || 0); });
+    return [...map.values()].sort((a, b) => Math.max(b.sourcePayin, b.amount) - Math.max(a.sourcePayin, a.amount));
+  }, [bankByMerchant, sourceByMerchant]);
+
+  const combinedTotals = useMemo(() => {
+    return combinedByMerchant.reduce((s, g) => ({
+      sourcePayin: s.sourcePayin + (g.sourcePayin || 0),
+      sourceCount: s.sourceCount + (g.sourceCount || 0),
+      bankPayin: s.bankPayin + (g.amount || 0),
+      payinDiff: s.payinDiff + (g.payinDiff || 0),
+    }), { sourcePayin: 0, sourceCount: 0, bankPayin: 0, payinDiff: 0 });
+  }, [combinedByMerchant]);
+
+  const downloadBankRecon = () => {
+    if (combinedByMerchant.length === 0) return;
+    const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+    const feeLabel = `Our Fee (${CHARGE_RATE}%)`;
+    const gstLabel = `Our GST (${GST_RATE}%)`;
+    const data = combinedByMerchant.map((g, i) => ({
+      "S.No": i + 1,
+      Merchant: g.merchant,
+      Companies: g.companies,
+      "Txn Count": g.count,
+      "Source Payin": r2(g.sourcePayin || 0),
+      "Bank Payin": r2(g.amount),
+      "Payin Diff (Source − Bank)": r2(g.payinDiff || 0),
+      "Bank Fee": r2(g.fee),
+      "Bank GST": r2(g.gst),
+      "Bank Settlement": r2(g.settle),
+      "Chargeback Received": r2(g.chargeback),
+      "Net Merchant Settlement": r2(g.netSettle),
+      [feeLabel]: r2(g.ourFee),
+      [gstLabel]: r2(g.ourGst),
+      "Our Settlement": r2(g.ourSettle),
+      "Our Net (after CB)": r2(g.ourNet),
+      "Difference (Bank Net − Our Net)": r2(g.diff),
+      "Unmatched Companies": g.unmatched,
+    }));
+    data.push({
+      "S.No": "",
+      Merchant: "TOTAL",
+      Companies: bankTotals.companies,
+      "Txn Count": bankTotals.count,
+      "Source Payin": r2(combinedTotals.sourcePayin),
+      "Bank Payin": r2(combinedTotals.bankPayin),
+      "Payin Diff (Source − Bank)": r2(combinedTotals.payinDiff),
+      "Bank Fee": r2(bankTotals.fee),
+      "Bank GST": r2(bankTotals.gst),
+      "Bank Settlement": r2(bankTotals.settle),
+      "Chargeback Received": r2(bankTotals.chargeback),
+      "Net Merchant Settlement": r2(bankTotals.netSettle),
+      [feeLabel]: r2(bankTotals.amount * CHARGE_RATE / 100),
+      [gstLabel]: r2((bankTotals.amount * CHARGE_RATE / 100) * GST_RATE / 100),
+      "Our Settlement": r2(bankTotals.ourSettle),
+      "Our Net (after CB)": r2(bankTotals.ourNet),
+      "Difference (Bank Net − Our Net)": r2(bankTotals.diff),
+      "Unmatched Companies": bankTotals.unmatched,
+    });
+    const ws = XLSX.utils.json_to_sheet(data);
+    ws["!cols"] = [
+      { wch: 6 },   // A S.No
+      { wch: 14 },  // B Merchant
+      { wch: 10 },  // C Companies
+      { wch: 10 },  // D Txn Count
+      { wch: 16 },  // E Source Payin
+      { wch: 16 },  // F Bank Payin
+      { wch: 20 },  // G Payin Diff
+      { wch: 14 },  // H Bank Fee
+      { wch: 12 },  // I Bank GST
+      { wch: 16 },  // J Bank Settlement
+      { wch: 16 },  // K Chargeback
+      { wch: 22 },  // L Net Merchant Settlement
+      { wch: 14 },  // M Our Fee
+      { wch: 14 },  // N Our GST
+      { wch: 16 },  // O Our Settlement
+      { wch: 16 },  // P Our Net
+      { wch: 24 },  // Q Difference
+      { wch: 20 },  // R Unmatched
+    ];
+
+    // Apply 2-decimal money format to columns E..Q. Txn Count (D) uses integer format.
+    const moneyCols = ["E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"];
+    const numFmt = "#,##0.00";
+    for (let row = 2; row <= data.length + 1; row++) {
+      for (const col of moneyCols) {
+        const ref = col + row;
+        const cell = ws[ref];
+        if (cell && typeof cell.v === "number") {
+          cell.z = numFmt;
+          cell.t = "n";
+        }
+      }
+      const dRef = "D" + row;
+      if (ws[dRef] && typeof ws[dRef].v === "number") {
+        ws[dRef].z = "#,##0";
+        ws[dRef].t = "n";
+      }
+    }
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Summary");
+
+    // ----- Per-merchant detail sheets -----
+    // normCompany is already defined at the component level for fuzzy company matching.
+    const sanitizeSheetName = (name) => {
+      let s = String(name || "Unknown").replace(/[\/\\?*\[\]:]/g, " ").trim();
+      if (s.length > 31) s = s.slice(0, 31);
+      return s || "Unknown";
+    };
+    const usedNames = new Set(["Summary"]);
+    const uniqueName = (base) => {
+      let n = sanitizeSheetName(base);
+      let i = 2;
+      while (usedNames.has(n)) {
+        const suffix = ` (${i})`;
+        n = sanitizeSheetName(base.slice(0, 31 - suffix.length) + suffix);
+        i++;
+      }
+      usedNames.add(n);
+      return n;
+    };
+
+    combinedByMerchant.forEach((g) => {
+      // Merge per-company rows from bank + source files under this merchant
+      const compMap = new Map();
+      bankRows.filter((b) => (b.merchant || "Unmatched") === g.merchant).forEach((b) => {
+        const key = (b.mid || normCompany(b.name)) || b.name;
+        compMap.set(key, {
+          mid: b.mid || "",
+          name: b.name,
+          bankCount: b.count,
+          bankPayin: b.amount,
+          bankFee: b.fee,
+          bankGst: b.gst,
+          bankSettle: b.settle,
+          chargeback: b.chargeback || 0,
+          netSettle: b.netSettle || (b.settle - (b.chargeback || 0)),
+          sourcePayin: 0,
+        });
+      });
+      sourceRows.filter((s) => (s.merchant || "Unmatched") === g.merchant).forEach((s) => {
+        const sNorm = normCompany(s.name);
+        // Try to match an existing bank row by company name
+        let matched = null;
+        for (const [, v] of compMap) {
+          if (normCompany(v.name) === sNorm) { matched = v; break; }
+        }
+        if (matched) {
+          matched.sourcePayin = s.amount;
+          matched.sourceCount = s.count;
+        } else {
+          compMap.set(s.name, {
+            mid: "",
+            name: s.name,
+            bankCount: 0,
+            bankPayin: 0,
+            bankFee: 0,
+            bankGst: 0,
+            bankSettle: 0,
+            chargeback: 0,
+            netSettle: 0,
+            sourcePayin: s.amount,
+            sourceCount: s.count,
+          });
+        }
+      });
+      if (compMap.size === 0) return;
+
+      const rowsArr = [...compMap.values()].sort((a, b) => (b.sourcePayin || b.bankPayin) - (a.sourcePayin || a.bankPayin));
+      const detailData = rowsArr.map((c, i) => ({
+        "S.No": i + 1,
+        MID: c.mid,
+        Company: c.name,
+        "Source Payin": r2(c.sourcePayin),
+        "Bank Payin": r2(c.bankPayin),
+        "Payin Diff": r2((c.sourcePayin || 0) - (c.bankPayin || 0)),
+        "Txn Count": c.bankCount || c.sourceCount || 0,
+        "Bank Fee": r2(c.bankFee),
+        "Bank GST": r2(c.bankGst),
+        "Bank Settle": r2(c.bankSettle),
+        Chargeback: r2(c.chargeback),
+        "Net Settle": r2(c.netSettle),
+      }));
+      // Total row
+      const tot = rowsArr.reduce((s, c) => ({
+        sourcePayin: s.sourcePayin + (c.sourcePayin || 0),
+        bankPayin: s.bankPayin + (c.bankPayin || 0),
+        count: s.count + (c.bankCount || c.sourceCount || 0),
+        bankFee: s.bankFee + (c.bankFee || 0),
+        bankGst: s.bankGst + (c.bankGst || 0),
+        bankSettle: s.bankSettle + (c.bankSettle || 0),
+        chargeback: s.chargeback + (c.chargeback || 0),
+        netSettle: s.netSettle + (c.netSettle || 0),
+      }), { sourcePayin: 0, bankPayin: 0, count: 0, bankFee: 0, bankGst: 0, bankSettle: 0, chargeback: 0, netSettle: 0 });
+      detailData.push({
+        "S.No": "",
+        MID: "",
+        Company: "TOTAL",
+        "Source Payin": r2(tot.sourcePayin),
+        "Bank Payin": r2(tot.bankPayin),
+        "Payin Diff": r2(tot.sourcePayin - tot.bankPayin),
+        "Txn Count": tot.count,
+        "Bank Fee": r2(tot.bankFee),
+        "Bank GST": r2(tot.bankGst),
+        "Bank Settle": r2(tot.bankSettle),
+        Chargeback: r2(tot.chargeback),
+        "Net Settle": r2(tot.netSettle),
+      });
+
+      const detailWs = XLSX.utils.json_to_sheet(detailData);
+      detailWs["!cols"] = [
+        { wch: 6 }, { wch: 18 }, { wch: 42 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
+        { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 16 },
+      ];
+      // Apply 2-decimal format to money columns (D..F, H..L)
+      const detailMoney = ["D", "E", "F", "H", "I", "J", "K", "L"];
+      for (let row = 2; row <= detailData.length + 1; row++) {
+        for (const col of detailMoney) {
+          const cell = detailWs[col + row];
+          if (cell && typeof cell.v === "number") { cell.z = numFmt; cell.t = "n"; }
+        }
+        const cnt = detailWs["G" + row];
+        if (cnt && typeof cnt.v === "number") { cnt.z = "#,##0"; cnt.t = "n"; }
+      }
+      XLSX.utils.book_append_sheet(wb, detailWs, uniqueName(g.merchant));
+    });
+
+    XLSX.writeFile(wb, `bank_recon_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
 
   const addRecon = () => {
     const rp = parseFloat(rPayin) || 0;
@@ -2302,6 +3001,250 @@ export default function App() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Reconciliation Uploads */}
+            <div
+              style={{
+                background: C.card,
+                borderRadius: 14,
+                border: `1px solid ${C.border}`,
+                padding: 24,
+                marginBottom: 20,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+                    Reconciliation Uploads
+                  </div>
+                  <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+                    Upload internal payin and bank settlement files — auto-aggregates by merchant
+                  </div>
+                </div>
+                {(bankRows.length > 0 || sourceRows.length > 0) && (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={downloadBankRecon}
+                      style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: C.accent, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      <SI d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12v8m0 0l-4-4m4 4l4-4M12 4v4" />
+                      Download Recon
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Two side-by-side drop zones */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                {/* Source / internal payin */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: ".5px" }}>
+                      1. Internal Payin
+                    </div>
+                    {sourceRows.length > 0 && (
+                      <button onClick={clearSource} style={{ background: "none", border: "none", color: C.muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                        Clear ×
+                      </button>
+                    )}
+                  </div>
+                  {sourceRows.length === 0 ? (
+                    <div
+                      onDragOver={(e) => { e.preventDefault(); setSourceDragging(true); }}
+                      onDragLeave={() => setSourceDragging(false)}
+                      onDrop={handleSourceDrop}
+                      onClick={() => document.getElementById("source-file-input")?.click()}
+                      style={{
+                        background: sourceDragging ? "#eff6ff" : C.bg,
+                        border: sourceDragging ? `2.5px dashed ${C.blue}` : `2px dashed ${C.border}`,
+                        borderRadius: 12,
+                        padding: "24px 14px",
+                        textAlign: "center",
+                        cursor: "pointer",
+                        transition: "all .2s",
+                      }}
+                    >
+                      <input id="source-file-input" type="file" accept=".csv,.xlsx,.xls" onChange={handleSourceInput} style={{ display: "none" }} />
+                      <div style={{ fontSize: 24, marginBottom: 6 }}>{sourceDragging ? "📥" : "📊"}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 2 }}>
+                        {sourceDragging ? "Drop here" : "Drag & drop internal payin Excel"}
+                      </div>
+                      <div style={{ fontSize: 10, color: C.muted }}>
+                        Detects: Row Labels / Name + Sum of Amount
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: "12px 14px", background: "#eff6ff", borderRadius: 10, border: "1px solid #bfdbfe", fontSize: 11, color: "#1e40af" }}>
+                      <div><strong>📊 {sourceFile}</strong></div>
+                      <div style={{ marginTop: 4 }}>
+                        {sourceRows.length} companies · {sourceByMerchant.size} merchants · Total{" "}
+                        <strong>{formatINR(sourceRows.reduce((s, r) => s + r.amount, 0))}</strong>
+                      </div>
+                    </div>
+                  )}
+                  {sourceError && (
+                    <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 6, background: "#fef2f2", border: "1px solid #fca5a5", color: "#991b1b", fontSize: 11, fontWeight: 600 }}>
+                      {sourceError}
+                    </div>
+                  )}
+                </div>
+
+                {/* Bank settlement */}
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: ".5px" }}>
+                      2. Bank Settlement
+                    </div>
+                    {bankRows.length > 0 && (
+                      <button onClick={clearBank} style={{ background: "none", border: "none", color: C.muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                        Clear ×
+                      </button>
+                    )}
+                  </div>
+                  {bankRows.length === 0 ? (
+                    <div
+                      onDragOver={(e) => { e.preventDefault(); setBankDragging(true); }}
+                      onDragLeave={() => setBankDragging(false)}
+                      onDrop={handleBankDrop}
+                      onClick={() => document.getElementById("bank-file-input")?.click()}
+                      style={{
+                        background: bankDragging ? "#ecfdf5" : C.bg,
+                        border: bankDragging ? `2.5px dashed ${C.accent}` : `2px dashed ${C.border}`,
+                        borderRadius: 12,
+                        padding: "24px 14px",
+                        textAlign: "center",
+                        cursor: "pointer",
+                        transition: "all .2s",
+                      }}
+                    >
+                      <input id="bank-file-input" type="file" accept=".csv,.xlsx,.xls" onChange={handleBankInput} style={{ display: "none" }} />
+                      <div style={{ fontSize: 24, marginBottom: 6 }}>{bankDragging ? "📥" : "🏦"}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 2 }}>
+                        {bankDragging ? "Drop here" : "Drag & drop bank settlement Excel"}
+                      </div>
+                      <div style={{ fontSize: 10, color: C.muted }}>
+                        Detects: MID · Name · Amount · Fee · GST · Settle · Chargeback
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ padding: "12px 14px", background: "#ecfdf5", borderRadius: 10, border: "1px solid #a7f3d0", fontSize: 11, color: "#065f46" }}>
+                      <div><strong>🏦 {bankFile}</strong></div>
+                      <div style={{ marginTop: 4 }}>
+                        {bankRows.length} companies · {bankByMerchant.length} merchants
+                        {bankTotals.unmatched > 0 && (
+                          <span style={{ color: "#991b1b", marginLeft: 6 }}>· {bankTotals.unmatched} unmatched</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {bankError && (
+                    <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 6, background: "#fef2f2", border: "1px solid #fca5a5", color: "#991b1b", fontSize: 11, fontWeight: 600 }}>
+                      {bankError}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {(bankRows.length > 0 || sourceRows.length > 0) && (
+                <>
+
+                  {/* Aggregated summary table */}
+                  <div style={{ marginTop: 14, overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 10 }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ borderBottom: `2px solid ${C.border}`, background: "#f8fafc" }}>
+                          {(() => {
+                            const headers = ["Merchant"];
+                            if (sourceRows.length > 0) headers.push("Source Payin");
+                            if (bankRows.length > 0) headers.push("Bank Payin");
+                            if (sourceRows.length > 0 && bankRows.length > 0) headers.push("Payin Diff");
+                            if (bankRows.length > 0) headers.push("Bank Fee", "Bank GST", "Bank Settle", "Chargeback", "Net Settle", "Our Settle", "Difference");
+                            return headers.map((h, i) => (
+                              <th key={i} style={{ padding: "10px 10px", textAlign: i <= 0 ? "left" : "right", fontSize: 9, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: ".5px", whiteSpace: "nowrap" }}>
+                                {h}
+                              </th>
+                            ));
+                          })()}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {combinedByMerchant.map((g) => (
+                          <tr key={g.merchant} style={{ borderBottom: `1px solid ${C.border}` }} onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")} onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}>
+                            <td style={{ padding: "10px 10px", fontWeight: 700, color: g.merchant === "Unmatched" ? C.red : C.accent }}>
+                              {g.merchant}
+                              {g.unmatched > 0 && g.merchant !== "Unmatched" && (
+                                <span style={{ marginLeft: 6, padding: "1px 6px", background: "#fef3c7", color: "#92400e", borderRadius: 4, fontSize: 9, fontWeight: 700 }} title="unmatched bank rows">
+                                  {g.unmatched} ub
+                                </span>
+                              )}
+                            </td>
+                            {sourceRows.length > 0 && (
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600, color: "#7c3aed" }}>
+                                {g.sourcePayin > 0 ? formatINR(g.sourcePayin) : "—"}
+                              </td>
+                            )}
+                            {bankRows.length > 0 && (
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>
+                                {g.amount > 0 ? formatINR(g.amount) : "—"}
+                              </td>
+                            )}
+                            {sourceRows.length > 0 && bankRows.length > 0 && (
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: Math.abs(g.payinDiff) <= 1 ? C.green : C.red }}>
+                                {g.payinDiff > 0 ? "+" : ""}{formatINR(g.payinDiff)}
+                              </td>
+                            )}
+                            {bankRows.length > 0 && (
+                              <>
+                                <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", color: C.orange }}>{formatINR(g.fee)}</td>
+                                <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", color: C.red }}>{formatINR(g.gst)}</td>
+                                <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.blue }}>{formatINR(g.settle)}</td>
+                                <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", color: g.chargeback > 0 ? "#dc2626" : C.muted }}>
+                                  {g.chargeback > 0 ? "−" + formatINR(g.chargeback) : "—"}
+                                </td>
+                                <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: "#1e40af" }}>{formatINR(g.netSettle)}</td>
+                                <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.green }}>{formatINR(g.ourNet)}</td>
+                                <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: Math.abs(g.diff) <= 1 ? C.green : C.red }}>
+                                  {g.diff > 0 ? "+" : ""}{formatINR(g.diff)}
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        ))}
+                        <tr style={{ background: "#f1f5f9", borderTop: `2px solid ${C.border}` }}>
+                          <td style={{ padding: "10px 10px", fontWeight: 700, color: C.text }}>TOTAL</td>
+                          {sourceRows.length > 0 && (
+                            <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: "#7c3aed" }}>{formatINR(combinedTotals.sourcePayin)}</td>
+                          )}
+                          {bankRows.length > 0 && (
+                            <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{formatINR(combinedTotals.bankPayin)}</td>
+                          )}
+                          {sourceRows.length > 0 && bankRows.length > 0 && (
+                            <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: Math.abs(combinedTotals.payinDiff) <= 1 ? C.green : C.red }}>
+                              {combinedTotals.payinDiff > 0 ? "+" : ""}{formatINR(combinedTotals.payinDiff)}
+                            </td>
+                          )}
+                          {bankRows.length > 0 && (
+                            <>
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.orange }}>{formatINR(bankTotals.fee)}</td>
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.red }}>{formatINR(bankTotals.gst)}</td>
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.blue }}>{formatINR(bankTotals.settle)}</td>
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: bankTotals.chargeback > 0 ? "#dc2626" : C.muted }}>
+                                {bankTotals.chargeback > 0 ? "−" + formatINR(bankTotals.chargeback) : "—"}
+                              </td>
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: "#1e40af" }}>{formatINR(bankTotals.netSettle)}</td>
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.green }}>{formatINR(bankTotals.ourNet)}</td>
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: Math.abs(bankTotals.diff) <= 1 ? C.green : C.red }}>
+                                {bankTotals.diff > 0 ? "+" : ""}{formatINR(bankTotals.diff)}
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </div>
 
             <div
