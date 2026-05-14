@@ -25,3 +25,41 @@ dist-ssr
 
 # Local agent configs
 .claude/
+
+# Environment / secrets (NEVER commit)
+.env
+.env.local
+.env.*.local
+.env.production
+backend/.env
+backend/.env.local
+backend/secrets/credentials.json
+backend/secrets/token.json
+backend/secrets/*.json
+!backend/secrets/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Local SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# Telegram inbound poller state
+backend/data/telegram_state.json
+
+# Coverage / build
+coverage/
+.nyc_output/
+build/
+
+# OS
+Thumbs.db

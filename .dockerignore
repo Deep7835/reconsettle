@@ -1,0 +1,48 @@
+# Node
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+dist
+build
+.vite
+
+# Backend (handled by its own Dockerfile)
+backend
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Tests
+coverage
+.nyc_output
+
+# Misc
+*.log
+.eslintcache
+
+# Tooling artifacts
+.git
+.gitignore
+.claude
+
+# Docker / deploy files don't need to be inside the build context
+Dockerfile
+docker-compose.yml
+*.dockerignore
+DEPLOY.md
+
+# Repo metadata
+README.md
+.github

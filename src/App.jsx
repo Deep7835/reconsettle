@@ -1,5 +1,54 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import * as XLSX from "xlsx";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
+import {
+  Plus,
+  X,
+  Calendar as CalendarIcon,
+  Building2,
+  IndianRupee,
+  Sun,
+  Moon,
+  Receipt,
+  Download,
+  Trash2,
+  Upload,
+  FileSpreadsheet,
+  CheckCircle2,
+  AlertCircle,
+  Search,
+  Users,
+  ArrowRight,
+  Menu,
+  Zap,
+  Home,
+  PlusCircle,
+  BarChart3,
+  ClipboardCheck,
+  Building,
+  Sparkles,
+  ChevronsLeft,
+  ChevronsRight,
+  Activity as ActivityIcon,
+} from "lucide-react";
+import Automation from "@/Automation.jsx";
+import Login from "@/Login.jsx";
+import { api as backendApi, getStoredAuth } from "@/lib/api.js";
+import { LogOut } from "lucide-react";
 
 const CHARGE_RATE = 0.41;
 const GST_RATE = 0;
@@ -341,16 +390,16 @@ const SI = ({ d }) => (
 );
 
 const C = {
-  bg: "#f0f2f5",
-  sidebar: "#1a2e35",
-  sideH: "#243d47",
-  sideA: "#2d4f5c",
-  accent: "#1a7f64",
-  accentL: "#d1fae5",
+  bg: "#f6f5fb",
+  sidebar: "#1d1535",
+  sideH: "#2a1f4a",
+  sideA: "#3a2a64",
+  accent: "#7c3aed",
+  accentL: "#ede9fe",
   card: "#ffffff",
-  text: "#1e293b",
-  muted: "#64748b",
-  border: "#e2e8f0",
+  text: "#15131e",
+  muted: "#6b6480",
+  border: "#e8e4ee",
   green: "#10b981",
   orange: "#f59e0b",
   red: "#ef4444",
@@ -358,6 +407,25 @@ const C = {
 };
 
 export default function App() {
+  // ----- Auth gate -----
+  const [auth, setAuth] = useState(() => getStoredAuth());
+
+  useEffect(() => {
+    function onExpired() {
+      setAuth(null);
+    }
+    window.addEventListener("settleops:auth-expired", onExpired);
+    return () => window.removeEventListener("settleops:auth-expired", onExpired);
+  }, []);
+
+  if (!auth?.access_token) {
+    return <Login onSuccess={(r) => setAuth(r)} />;
+  }
+
+  return <AuthenticatedApp user={auth.user} onLogout={() => { backendApi.logout(); setAuth(null); }} />;
+}
+
+function AuthenticatedApp({ user, onLogout }) {
   const [page, setPage] = useState("dashboard");
   const [selM, setSM] = useState("");
   const [selC, setSC] = useState("");
@@ -387,6 +455,46 @@ export default function App() {
   const [fC, setFC] = useState("__all__");
   const [cSearch, setCS] = useState("");
   const [sideOpen, setSO] = useState(true);
+  const [mobileNav, setMobileNav] = useState(false);
+  const [backendUp, setBackendUp] = useState(null); // null=checking, true/false=known
+  const [serverStats, setServerStats] = useState(null); // backend /api/dashboard/stats snapshot
+
+  // Probe backend every 30s so the header pill + nav badge update live
+  useEffect(() => {
+    let cancelled = false;
+    async function probe() {
+      try {
+        await backendApi.health();
+        if (!cancelled) setBackendUp(true);
+      } catch {
+        if (!cancelled) setBackendUp(false);
+      }
+    }
+    probe();
+    const id = setInterval(probe, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  // When on the Dashboard, fetch the backend snapshot (if backend is up)
+  useEffect(() => {
+    if (!backendUp) {
+      setServerStats(null);
+      return;
+    }
+    let cancelled = false;
+    async function load() {
+      try {
+        const stats = await backendApi.dashboard();
+        if (!cancelled) setServerStats(stats);
+      } catch {
+        if (!cancelled) setServerStats(null);
+      }
+    }
+    load();
+  }, [backendUp, page]);
 
   const [recon, setRecon] = useState([]);
   const [rMerchant, setRM] = useState("");
@@ -1518,29 +1626,30 @@ export default function App() {
     };
   }, [recon, rResolved]);
 
-  const navItems = [
+  const navSections = [
     {
-      id: "dashboard",
-      label: "Dashboard",
-      icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1",
-    },
-    { id: "add", label: "Add Entry", icon: "M12 4v16m8-8H4" },
-    {
-      id: "reports",
-      label: "Reports",
-      icon: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+      label: "Workspace",
+      items: [
+        { id: "dashboard", label: "Dashboard", Icon: Home },
+        { id: "add", label: "Add Entry", Icon: PlusCircle },
+        { id: "reports", label: "Reports", Icon: BarChart3 },
+      ],
     },
     {
-      id: "recon",
-      label: "Reconciliation",
-      icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
+      label: "Reconcile",
+      items: [
+        { id: "recon", label: "Reconciliation", Icon: ClipboardCheck },
+        { id: "merchants", label: "Merchants", Icon: Building },
+      ],
     },
     {
-      id: "merchants",
-      label: "Merchants",
-      icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
+      label: "Tools",
+      items: [
+        { id: "automation", label: "Automation", Icon: Sparkles },
+      ],
     },
   ];
+  const navItems = navSections.flatMap((s) => s.items); // legacy: page-title lookup still uses this
 
   const selS = {
     width: "100%",
@@ -1591,420 +1700,997 @@ export default function App() {
     return { bg: "#fef3c7", color: "#92400e", label: "Pending" };
   };
 
+  const expanded = sideOpen || mobileNav;
+
   return (
     <div
       style={{
         display: "flex",
         height: "100vh",
         fontFamily:
-          "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
+          "'Saviom','Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",
         background: C.bg,
         overflow: "hidden",
+        letterSpacing: "-0.01em",
       }}
     >
+      {/* Mobile backdrop */}
+      {mobileNav && (
+        <div
+          onClick={() => setMobileNav(false)}
+          className="fixed inset-0 z-40 bg-black/55 backdrop-blur-[2px] md:hidden"
+        />
+      )}
+
       {/* Sidebar */}
-      <div
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-50 flex flex-col overflow-hidden border-r border-white/[0.06] md:static md:translate-x-0",
+          mobileNav ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        )}
         style={{
-          width: sideOpen ? 220 : 64,
-          background: C.sidebar,
-          display: "flex",
-          flexDirection: "column",
-          transition: "width .3s",
-          flexShrink: 0,
-          overflow: "hidden",
+          width: expanded ? 244 : 72,
+          background:
+            "radial-gradient(120% 80% at 0% 0%, rgba(167,139,250,0.10), transparent 60%)," +
+            "radial-gradient(80% 60% at 100% 100%, rgba(124,58,237,0.08), transparent 70%)," +
+            "linear-gradient(180deg, #15102a 0%, #0d0a1d 100%)",
+          transition: "width .25s ease, transform .25s ease",
         }}
       >
+        {/* Brand */}
         <div
-          style={{
-            padding: sideOpen ? "24px 20px 20px" : "24px 14px 20px",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            cursor: "pointer",
-          }}
-          onClick={() => setSO(!sideOpen)}
-        >
-          <div
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 10,
-              background: "linear-gradient(135deg,#10b981,#059669)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#fff",
-              fontWeight: 800,
-              fontSize: 16,
-              flexShrink: 0,
-            }}
-          >
-            S
-          </div>
-          {sideOpen && (
-            <span
-              style={{
-                color: "#fff",
-                fontWeight: 700,
-                fontSize: 17,
-                letterSpacing: "-0.3px",
-                whiteSpace: "nowrap",
-              }}
-            >
-              SettleOps
-            </span>
+          className={cn(
+            "relative flex items-center px-4 pt-5 pb-4",
+            expanded ? "justify-between" : "justify-center"
           )}
-        </div>
-        <nav style={{ flex: 1, padding: sideOpen ? "8px 10px" : "8px 8px" }}>
-          {navItems.map((item) => {
-            const a = page === item.id;
-            return (
-              <div
-                key={item.id}
-                onClick={() => setPage(item.id)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: sideOpen ? "11px 14px" : "11px 14px",
-                  borderRadius: 10,
-                  marginBottom: 4,
-                  cursor: "pointer",
-                  transition: "all .15s",
-                  background: a ? C.sideA : "transparent",
-                  color: a ? "#fff" : "#94a3b8",
-                  position: "relative",
-                }}
-                onMouseEnter={(e) => {
-                  if (!a) e.currentTarget.style.background = C.sideH;
-                }}
-                onMouseLeave={(e) => {
-                  if (!a) e.currentTarget.style.background = "transparent";
-                }}
-              >
-                <SI d={item.icon} />
-                {sideOpen && (
-                  <span
-                    style={{
-                      fontSize: 14,
-                      fontWeight: a ? 600 : 500,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {item.label}
-                  </span>
-                )}
-                {item.id === "recon" && reconStats.mismatch > 0 && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      right: sideOpen ? 12 : 6,
-                      top: sideOpen ? 12 : 6,
-                      background: C.red,
-                      color: "#fff",
-                      fontSize: 9,
-                      fontWeight: 700,
-                      borderRadius: 10,
-                      padding: "1px 6px",
-                      minWidth: 18,
-                      textAlign: "center",
-                    }}
-                  >
-                    {reconStats.mismatch}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </nav>
-        <div
-          style={{ padding: sideOpen ? "16px 10px 20px" : "16px 8px 20px" }}
         >
           <div
-            style={{
-              padding: sideOpen ? "12px 14px" : "12px",
-              borderRadius: 10,
-              background: "rgba(255,255,255,.06)",
+            className={cn(
+              "flex min-w-0 items-center gap-3 cursor-pointer",
+              expanded && "flex-1"
+            )}
+            onClick={() => {
+              if (mobileNav) setMobileNav(false);
+              else if (!sideOpen) setSO(true);
             }}
+            title={!expanded ? "Expand" : undefined}
           >
             <div
+              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-white font-extrabold relative overflow-hidden"
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                animation: "pulse 2s infinite",
+                background: "linear-gradient(135deg,#a78bfa 0%,#8b5cf6 45%,#6d28d9 100%)",
+                boxShadow:
+                  "0 6px 16px rgba(124,58,237,.45), inset 0 1px 0 rgba(255,255,255,.35), inset 0 -1px 0 rgba(0,0,0,.2)",
+                fontSize: 15,
+                letterSpacing: "-0.5px",
               }}
             >
+              <span className="relative z-10">S</span>
               <div
+                className="pointer-events-none absolute inset-0"
                 style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: cyc.color,
-                  boxShadow: `0 0 6px ${cyc.color}`,
-                  flexShrink: 0,
+                  background:
+                    "radial-gradient(60% 50% at 30% 20%, rgba(255,255,255,.4), transparent 70%)",
                 }}
               />
-              {sideOpen && (
-                <span
-                  style={{
-                    color: "#94a3b8",
-                    fontSize: 11,
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: ".5px",
-                  }}
-                >
-                  Cycle {cyc.cycle}
-                </span>
-              )}
             </div>
-            {sideOpen && (
-              <>
-                <div
-                  style={{
-                    color: "#e2e8f0",
-                    fontSize: 12,
-                    fontWeight: 500,
-                    marginTop: 4,
-                  }}
-                >
-                  {cyc.label}
-                </div>
-                <div
-                  style={{
-                    color: "#94a3b8",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    marginTop: 4,
-                    fontFamily: "'JetBrains Mono',monospace",
-                  }}
-                >
-                  <LiveClock />
-                </div>
-              </>
+            {expanded && (
+              <div className="flex min-w-0 flex-col leading-tight">
+                <span className="truncate text-[15px] font-bold text-white tracking-tight">
+                  SettleOps
+                </span>
+                <span className="mt-0.5 flex items-center gap-1.5 text-[9.5px] font-semibold uppercase tracking-[.14em] text-white/40">
+                  <span className="h-1 w-1 rounded-full bg-emerald-400 shadow-[0_0_4px_rgba(52,211,153,.8)]" />
+                  PRO
+                </span>
+              </div>
             )}
           </div>
         </div>
-      </div>
 
-      {/* Main */}
-      <div style={{ flex: 1, overflow: "auto", padding: 28 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 24,
-            flexWrap: "wrap",
-            gap: 12,
-          }}
+        {/* Always-visible collapse/expand pill on the right edge — never gets clipped */}
+        <button
+          type="button"
+          onClick={() => setSO(!sideOpen)}
+          title={expanded ? "Collapse sidebar" : "Expand sidebar"}
+          className={cn(
+            "absolute z-10 hidden h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-[#1a1334] text-white/60 shadow-md transition-all hover:bg-violet-500/30 hover:text-white md:flex",
+            "top-7"
+          )}
+          style={{ right: -12 }}
         >
-          <div>
-            <h1
+          {expanded ? <ChevronsLeft className="h-3 w-3" /> : <ChevronsRight className="h-3 w-3" />}
+        </button>
+
+        {/* Divider */}
+        <div className="mx-4 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+
+        {/* Sectioned nav */}
+        <nav className="flex-1 overflow-y-auto px-3 py-3">
+          {navSections.map((section, sIdx) => (
+            <div key={section.label} className={cn(sIdx > 0 && "mt-4")}>
+              {expanded && (
+                <div className="mb-1.5 px-3 text-[9.5px] font-semibold uppercase tracking-[.14em] text-white/35">
+                  {section.label}
+                </div>
+              )}
+              {section.items.map((item) => {
+                const a = page === item.id;
+                const Icon = item.Icon;
+                const showBadge = item.id === "recon" && reconStats.mismatch > 0;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setPage(item.id);
+                      setMobileNav(false);
+                    }}
+                    title={!expanded ? item.label : undefined}
+                    className={cn(
+                      "group relative mb-0.5 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-all duration-150",
+                      a
+                        ? "text-white"
+                        : "text-white/60 hover:bg-white/[0.05] hover:text-white"
+                    )}
+                    style={
+                      a
+                        ? {
+                            background:
+                              "linear-gradient(90deg, rgba(167,139,250,0.22) 0%, rgba(124,58,237,0.10) 100%)",
+                            boxShadow:
+                              "inset 0 0 0 1px rgba(167,139,250,0.28), 0 1px 0 rgba(0,0,0,0.2)",
+                          }
+                        : undefined
+                    }
+                  >
+                    {a && (
+                      <span
+                        className="absolute -left-3 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r"
+                        style={{
+                          background: "linear-gradient(180deg,#c4b5fd,#7c3aed)",
+                          boxShadow: "0 0 8px rgba(167,139,250,.7)",
+                        }}
+                      />
+                    )}
+                    <Icon
+                      className={cn(
+                        "h-[18px] w-[18px] flex-shrink-0 transition-colors",
+                        a ? "text-violet-200" : "text-white/55 group-hover:text-white"
+                      )}
+                      strokeWidth={a ? 2.2 : 1.8}
+                    />
+                    {expanded && (
+                      <span
+                        className={cn(
+                          "flex-1 truncate text-[13.5px] tracking-tight",
+                          a ? "font-semibold" : "font-medium"
+                        )}
+                      >
+                        {item.label}
+                      </span>
+                    )}
+                    {showBadge && expanded && (
+                      <span
+                        className="ml-auto rounded-md px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-white"
+                        style={{
+                          background: "linear-gradient(135deg,#f43f5e,#e11d48)",
+                          boxShadow: "0 2px 6px rgba(244,63,94,.45)",
+                        }}
+                      >
+                        {reconStats.mismatch}
+                      </span>
+                    )}
+                    {showBadge && !expanded && (
+                      <span
+                        className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full"
+                        style={{
+                          background: "#f43f5e",
+                          boxShadow: "0 0 6px rgba(244,63,94,.7)",
+                        }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+
+        {/* Cycle status card */}
+        <div className="px-3 pt-2">
+          {expanded ? (
+            <div
+              className="relative overflow-hidden rounded-lg p-3"
               style={{
-                fontSize: 22,
-                fontWeight: 700,
-                color: C.text,
-                letterSpacing: "-0.3px",
+                background:
+                  "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, rgba(167,139,250,0.06) 100%)",
+                boxShadow:
+                  "inset 0 0 0 1px rgba(255,255,255,0.06), 0 4px 12px rgba(0,0,0,0.25)",
               }}
             >
-              {navItems.find((n) => n.id === page)?.label || "Dashboard"}
-            </h1>
-            <p style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
-              Charge {CHARGE_RATE}% + GST {page === "add" ? gstRate : GST_RATE}% on charge
-            </p>
+              <div
+                className="pointer-events-none absolute -right-4 -top-4 h-14 w-14 rounded-full blur-2xl"
+                style={{ background: `radial-gradient(circle, ${cyc.color}45, transparent 70%)` }}
+              />
+              <div className="relative">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full"
+                      style={{
+                        background: cyc.color,
+                        boxShadow: `0 0 6px ${cyc.color}, 0 0 2px ${cyc.color}`,
+                        animation: "pulse 2s infinite",
+                      }}
+                    />
+                    <span className="text-[9px] font-bold uppercase tracking-[.18em] text-white/55">
+                      Active cycle
+                    </span>
+                  </div>
+                  <span
+                    className="rounded px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums"
+                    style={{ background: `${cyc.color}26`, color: cyc.color }}
+                  >
+                    C{cyc.cycle}
+                  </span>
+                </div>
+                <div className="mt-2 text-[11px] font-medium tracking-tight text-white/65">
+                  {cyc.label}
+                </div>
+                <div
+                  className="mt-1 font-mono text-[14px] font-bold leading-none text-white tabular-nums"
+                  style={{ letterSpacing: "0.5px" }}
+                >
+                  <LiveClock />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              className="relative flex flex-col items-center gap-1.5 rounded-lg px-1 py-3"
+              style={{
+                background:
+                  "linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(167,139,250,0.04) 100%)",
+                boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.06)",
+              }}
+              title={`Cycle ${cyc.cycle} · ${cyc.label}`}
+            >
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{
+                  background: cyc.color,
+                  boxShadow: `0 0 8px ${cyc.color}, 0 0 2px ${cyc.color}`,
+                  animation: "pulse 2s infinite",
+                }}
+              />
+              <span
+                className="rounded-md px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums"
+                style={{ background: `${cyc.color}26`, color: cyc.color }}
+              >
+                C{cyc.cycle}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Account row — at the very bottom now */}
+        <div className="mx-3 my-3 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+        <div className="px-3 pb-4">
+          {expanded ? (
+            <div
+              className="group flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-white/[0.05]"
+              style={{
+                background: "linear-gradient(135deg,rgba(255,255,255,0.02),rgba(167,139,250,0.04))",
+                boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)",
+              }}
+            >
+              <div
+                className="relative flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-md text-[12px] font-bold uppercase text-white"
+                style={{
+                  background: "linear-gradient(135deg,#a78bfa 0%,#7c3aed 100%)",
+                  boxShadow:
+                    "inset 0 1px 0 rgba(255,255,255,.3), 0 2px 6px rgba(124,58,237,.35)",
+                }}
+                title={user?.username}
+              >
+                <span className="relative z-10">{(user?.username || "?").slice(0, 1)}</span>
+                {/* Online indicator */}
+                <span
+                  className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#15102a] bg-emerald-400"
+                  style={{ boxShadow: "0 0 4px rgba(52,211,153,.7)" }}
+                />
+              </div>
+              <div className="min-w-0 flex-1 leading-tight">
+                <div className="truncate text-[12.5px] font-semibold text-white">
+                  {user?.username}
+                </div>
+                <div className="flex items-center gap-1 text-[9.5px] font-medium text-emerald-300/80">
+                  <span className="h-1 w-1 rounded-full bg-emerald-400" />
+                  Signed in
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onLogout}
+                title="Sign out"
+                aria-label="Sign out"
+                className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-white/45 transition-all hover:bg-red-500/15 hover:text-red-300"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            /* Collapsed: avatar with online dot on top, logout below */
+            <div className="flex flex-col items-center gap-1.5">
+              <div
+                className="relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-md text-[12px] font-bold uppercase text-white"
+                style={{
+                  background: "linear-gradient(135deg,#a78bfa 0%,#7c3aed 100%)",
+                  boxShadow:
+                    "inset 0 1px 0 rgba(255,255,255,.3), 0 2px 6px rgba(124,58,237,.35)",
+                }}
+                title={user?.username}
+              >
+                <span className="relative z-10">{(user?.username || "?").slice(0, 1)}</span>
+                <span
+                  className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border border-[#15102a] bg-emerald-400"
+                  style={{ boxShadow: "0 0 3px rgba(52,211,153,.7)" }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={onLogout}
+                title={`Sign out ${user?.username || ""}`}
+                aria-label="Sign out"
+                className="flex h-6 w-6 items-center justify-center rounded-md text-white/45 transition-all hover:bg-red-500/15 hover:text-red-300"
+              >
+                <LogOut className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* Main */}
+      <div className="flex-1 overflow-auto px-4 py-5 md:px-9 md:py-8">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4 md:mb-7 md:items-end md:pb-[18px]">
+          <div className="flex min-w-0 items-start gap-3">
+            <button
+              type="button"
+              onClick={() => setMobileNav(true)}
+              className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border border-border bg-card text-foreground shadow-xs transition-colors hover:bg-muted md:hidden"
+              aria-label="Open menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <div className="min-w-0">
+              <div className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-[.1em] text-muted-foreground md:text-[11px]">
+                SettleOps · {navItems.find((n) => n.id === page)?.label || "Dashboard"}
+              </div>
+              <h1
+                className="text-2xl font-bold leading-[1.1] tracking-tight text-foreground md:text-[28px]"
+                style={{ letterSpacing: "-0.8px" }}
+              >
+                {navItems.find((n) => n.id === page)?.label || "Dashboard"}
+              </h1>
+              <p className="mt-1.5 text-xs text-muted-foreground md:text-[13px]">
+                Charge {CHARGE_RATE}% + GST {page === "add" ? gstRate : GST_RATE}% applied on charge
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage("automation")}
+              title={
+                backendUp === true
+                  ? "Backend connected — click to open Automation"
+                  : backendUp === false
+                  ? "Backend offline — click for setup"
+                  : "Checking backend…"
+              }
+              className={cn(
+                "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold tracking-wide transition-colors md:text-[11px]",
+                backendUp === true && "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+                backendUp === false && "border-red-200 bg-red-50 text-red-700 hover:bg-red-100",
+                backendUp === null && "border-border bg-muted/60 text-muted-foreground"
+              )}
+            >
+              <span
+                className={cn(
+                  "inline-block h-1.5 w-1.5 rounded-full",
+                  backendUp === true && "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,.7)]",
+                  backendUp === false && "bg-red-500",
+                  backendUp === null && "bg-slate-400 animate-pulse"
+                )}
+              />
+              API
+            </button>
+            <div
+              className="flex items-center gap-2 rounded-full border px-3 py-1.5 md:px-3.5 md:py-2"
+              style={{ background: C.accentL, borderColor: `${C.accent}22` }}
+            >
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: cyc.color, boxShadow: `0 0 6px ${cyc.color}` }}
+              />
+              <span
+                className="text-[10.5px] font-semibold tracking-wide md:text-[11.5px]"
+                style={{ color: C.accent }}
+              >
+                <span className="hidden sm:inline">Cycle </span>C{cyc.cycle} · {cyc.label}
+              </span>
+            </div>
           </div>
         </div>
 
         {/* ========== DASHBOARD ========== */}
         {page === "dashboard" && (
-          <div className="fade-up">
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
-                gap: 16,
-                marginBottom: 24,
-              }}
-            >
+          <div className="fade-up space-y-6">
+            <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))" }}>
               {[
                 {
                   label: "Total Payin",
                   value: formatShort(allT.payin),
                   sub: `${rows.length} entries`,
-                  color: C.accent,
-                  bg: "#ecfdf5",
+                  tone: "violet",
                 },
                 {
                   label: "Total Charges",
                   value: formatShort(allT.charge),
                   sub: `${CHARGE_RATE}%`,
-                  color: C.orange,
-                  bg: "#fffbeb",
+                  tone: "amber",
                 },
                 {
                   label: "Total GST",
                   value: formatShort(allT.gst),
                   sub: `${GST_RATE}% on charge`,
-                  color: C.red,
-                  bg: "#fef2f2",
+                  tone: "rose",
                 },
                 {
                   label: "Settlement",
                   value: formatShort(allT.settlement),
                   sub:
                     rows.length > 0
-                      ? `${((allT.settlement / allT.payin) * 100).toFixed(2)}%`
+                      ? `${((allT.settlement / allT.payin) * 100).toFixed(2)}% of payin`
                       : "\u2014",
-                  color: C.green,
-                  bg: "#ecfdf5",
+                  tone: "emerald",
                 },
                 {
                   label: "Recon Issues",
                   value: reconStats.mismatch,
                   sub: `${reconStats.total} checked`,
-                  color: reconStats.mismatch > 0 ? C.red : C.green,
-                  bg: reconStats.mismatch > 0 ? "#fef2f2" : "#ecfdf5",
+                  tone: reconStats.mismatch > 0 ? "red" : "emerald",
                 },
-              ].map((s, i) => (
-                <div
-                  key={i}
-                  style={{
-                    background: C.card,
-                    borderRadius: 14,
-                    padding: 20,
-                    border: `1px solid ${C.border}`,
-                    position: "relative",
-                    overflow: "hidden",
-                  }}
-                >
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      right: 0,
-                      width: 80,
-                      height: 80,
-                      borderRadius: "0 0 0 80px",
-                      background: s.bg,
-                      opacity: 0.6,
-                    }}
-                  />
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      color: C.muted,
-                      textTransform: "uppercase",
-                      letterSpacing: ".5px",
-                      marginBottom: 8,
-                    }}
-                  >
-                    {s.label}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 22,
-                      fontWeight: 700,
-                      color: s.color,
-                      fontFamily: "'JetBrains Mono',monospace",
-                    }}
-                  >
-                    {s.value}
-                  </div>
-                  <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
-                    {s.sub}
-                  </div>
-                </div>
-              ))}
+              ].map((s, i) => {
+                const toneMap = {
+                  violet: { value: "text-violet-700", bg: "from-violet-200/60 to-violet-100/0", ring: "ring-violet-200" },
+                  amber: { value: "text-amber-700", bg: "from-amber-200/60 to-amber-100/0", ring: "ring-amber-200" },
+                  rose: { value: "text-rose-700", bg: "from-rose-200/60 to-rose-100/0", ring: "ring-rose-200" },
+                  emerald: { value: "text-emerald-700", bg: "from-emerald-200/60 to-emerald-100/0", ring: "ring-emerald-200" },
+                  red: { value: "text-red-700", bg: "from-red-200/60 to-red-100/0", ring: "ring-red-200" },
+                }[s.tone];
+                return (
+                  <Card key={i} className="relative overflow-hidden border-border/70 shadow-xs">
+                    <div
+                      className={cn(
+                        "pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-gradient-to-br blur-2xl",
+                        toneMap.bg
+                      )}
+                    />
+                    <CardContent className="relative px-5 py-5">
+                      <div className="mb-2 text-[10.5px] font-semibold uppercase tracking-[.08em] text-muted-foreground">
+                        {s.label}
+                      </div>
+                      <div className={cn("font-mono text-[26px] font-bold leading-none tabular-nums", toneMap.value)}>
+                        {s.value}
+                      </div>
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        {s.sub}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
+
+            {/* Secondary insight cards */}
+            {(() => {
+              const todayStr = new Date().toISOString().slice(0, 10);
+              const todayRows = rows.filter((r) => (r.date || "").slice(0, 10) === todayStr);
+              const todayPayin = todayRows.reduce((s, r) => s + (r.payin || 0), 0);
+              const c1 = rows.filter((r) => r.cycle === 1);
+              const c2 = rows.filter((r) => r.cycle === 2);
+              const c1Sum = c1.reduce((s, r) => s + (r.payin || 0), 0);
+              const c2Sum = c2.reduce((s, r) => s + (r.payin || 0), 0);
+              const totalCnt = c1.length + c2.length || 1;
+              const c1Pct = (c1.length / totalCnt) * 100;
+              const merchantCount = serverStats?.coverage?.merchant_count ?? new Set(MASTER_DATA.map((d) => d.merchant)).size;
+              const companyCount = serverStats?.coverage?.company_count ?? MASTER_DATA.length;
+              const reconTotal = reconStats.total || 1;
+              return (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {/* Today */}
+                  {(() => {
+                    const todaySettle = todayRows.reduce((s, r) => s + (r.settlement || 0), 0);
+                    const c1Today = todayRows.filter((r) => r.cycle === 1).length;
+                    const c2Today = todayRows.filter((r) => r.cycle === 2).length;
+                    // 7-day rolling
+                    const sevenAgo = new Date();
+                    sevenAgo.setDate(sevenAgo.getDate() - 7);
+                    const week = rows.filter((r) => new Date(r.date || 0) >= sevenAgo);
+                    const weekAvg = week.length > 0 ? week.length / 7 : 0;
+                    // Top company today
+                    const byCo = {};
+                    todayRows.forEach((r) => { byCo[r.company] = (byCo[r.company] || 0) + (r.payin || 0); });
+                    const topCo = Object.entries(byCo).sort((a, b) => b[1] - a[1])[0];
+                    return (
+                      <Card className="relative overflow-hidden border-border/70 shadow-xs">
+                        <div className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-gradient-to-br from-blue-200/60 to-violet-100/0 blur-2xl" />
+                        <CardContent className="relative space-y-3 px-5 py-5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-100 text-blue-700">
+                                <CalendarIcon className="h-3.5 w-3.5" />
+                              </div>
+                              <div className="text-[10.5px] font-semibold uppercase tracking-[.08em] text-muted-foreground">
+                                Today
+                              </div>
+                            </div>
+                            <span className="font-mono text-[10px] text-muted-foreground">{todayStr}</span>
+                          </div>
+
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-[28px] font-bold leading-none tracking-tight proportional-nums text-foreground">
+                              {todayRows.length}
+                            </span>
+                            <span className="text-[11px] font-medium text-muted-foreground">entries today</span>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="rounded-lg bg-violet-50/70 px-3 py-2 ring-1 ring-violet-200/40">
+                              <div className="text-[9.5px] font-semibold uppercase tracking-wider text-muted-foreground">Payin</div>
+                              <div className="font-mono text-sm font-bold tabular-nums text-violet-700">{formatShort(todayPayin)}</div>
+                            </div>
+                            <div className="rounded-lg bg-emerald-50/70 px-3 py-2 ring-1 ring-emerald-200/40">
+                              <div className="text-[9.5px] font-semibold uppercase tracking-wider text-muted-foreground">Settlement</div>
+                              <div className="font-mono text-sm font-bold tabular-nums text-emerald-700">{formatShort(todaySettle)}</div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1 pt-0.5 text-[10.5px]">
+                            <div className="flex items-center justify-between text-muted-foreground">
+                              <span>7-day avg</span>
+                              <span className="font-semibold tabular-nums text-foreground">{weekAvg.toFixed(1)} / day</span>
+                            </div>
+                            <div className="flex items-center justify-between text-muted-foreground">
+                              <span>Cycle split</span>
+                              <span className="flex items-center gap-1 font-semibold">
+                                <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] text-violet-700 tabular-nums">C1 {c1Today}</span>
+                                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 tabular-nums">C2 {c2Today}</span>
+                              </span>
+                            </div>
+                            {topCo && (
+                              <div className="flex items-center justify-between gap-2 text-muted-foreground">
+                                <span>Top company</span>
+                                <span className="truncate text-right font-semibold text-foreground" title={topCo[0]}>
+                                  {topCo[0]}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
+
+                  {/* By Cycle */}
+                  {(() => {
+                    const totalEntries = c1.length + c2.length;
+                    const c1PctNum = totalEntries > 0 ? (c1.length / totalEntries) * 100 : 0;
+                    const c2PctNum = totalEntries > 0 ? (c2.length / totalEntries) * 100 : 0;
+                    const totalPayin = c1Sum + c2Sum;
+                    return (
+                      <Card className="relative overflow-hidden border-border/70 shadow-xs">
+                        <div className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-gradient-to-br from-amber-200/60 to-violet-100/0 blur-2xl" />
+                        <CardContent className="relative space-y-3 px-5 py-5">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-100 text-amber-700">
+                                <Sun className="h-3.5 w-3.5" />
+                              </div>
+                              <div className="text-[10.5px] font-semibold uppercase tracking-[.08em] text-muted-foreground">
+                                By Cycle
+                              </div>
+                            </div>
+                            <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
+                              {totalEntries} total
+                            </span>
+                          </div>
+
+                          {/* Stacked split bar */}
+                          <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+                            <div
+                              className="h-full bg-gradient-to-r from-violet-400 to-violet-600 transition-all"
+                              style={{ width: `${c1PctNum}%` }}
+                              title={`C1: ${c1PctNum.toFixed(0)}%`}
+                            />
+                            <div
+                              className="h-full bg-gradient-to-r from-amber-400 to-amber-500 transition-all"
+                              style={{ width: `${c2PctNum}%` }}
+                              title={`C2: ${c2PctNum.toFixed(0)}%`}
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="rounded-lg bg-violet-50/70 px-3 py-2 ring-1 ring-violet-200/40">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1 text-violet-700">
+                                  <Sun className="h-3 w-3" />
+                                  <span className="text-[10.5px] font-bold">C1</span>
+                                </div>
+                                <span className="text-[10px] font-mono tabular-nums text-violet-600">{c1PctNum.toFixed(0)}%</span>
+                              </div>
+                              <div className="mt-0.5 text-[15px] font-bold leading-none proportional-nums text-violet-700">
+                                {c1.length}
+                              </div>
+                              <div className="mt-0.5 font-mono text-[10px] tabular-nums text-muted-foreground">{formatShort(c1Sum)}</div>
+                            </div>
+                            <div className="rounded-lg bg-amber-50/70 px-3 py-2 ring-1 ring-amber-200/40">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1 text-amber-700">
+                                  <Moon className="h-3 w-3" />
+                                  <span className="text-[10.5px] font-bold">C2</span>
+                                </div>
+                                <span className="text-[10px] font-mono tabular-nums text-amber-600">{c2PctNum.toFixed(0)}%</span>
+                              </div>
+                              <div className="mt-0.5 text-[15px] font-bold leading-none proportional-nums text-amber-700">
+                                {c2.length}
+                              </div>
+                              <div className="mt-0.5 font-mono text-[10px] tabular-nums text-muted-foreground">{formatShort(c2Sum)}</div>
+                            </div>
+                          </div>
+
+                          <div className="pt-0.5 text-[10.5px] text-muted-foreground">
+                            <div className="flex items-center justify-between">
+                              <span>Active now</span>
+                              <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+                                <span
+                                  className="h-1.5 w-1.5 rounded-full"
+                                  style={{ background: cyc.color, boxShadow: `0 0 4px ${cyc.color}` }}
+                                />
+                                C{cyc.cycle} · {cyc.label}
+                              </span>
+                            </div>
+                            <div className="mt-0.5 flex items-center justify-between">
+                              <span>Total payin</span>
+                              <span className="font-mono font-semibold tabular-nums text-foreground">{formatShort(totalPayin)}</span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })()}
+
+                  {/* Reconciliation Status */}
+                  <Card className="relative overflow-hidden border-border/70 shadow-xs">
+                    <div className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-gradient-to-br from-emerald-200/60 to-rose-100/0 blur-2xl" />
+                    <CardContent className="relative space-y-3 px-5 py-5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-100 text-emerald-700">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          </div>
+                          <div className="text-[10.5px] font-semibold uppercase tracking-[.08em] text-muted-foreground">
+                            Reconciliation
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPage("recon")}
+                          className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-primary hover:underline"
+                        >
+                          View <ArrowRight className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-[28px] font-bold leading-none tracking-tight proportional-nums text-foreground">
+                          {reconStats.total}
+                        </span>
+                        <span className="text-[11px] font-medium text-muted-foreground">checks</span>
+                      </div>
+
+                      <div className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+                        <div className="h-full bg-emerald-500 transition-all" style={{ width: `${(reconStats.matched / reconTotal) * 100}%` }} />
+                        <div className="h-full bg-red-500 transition-all" style={{ width: `${(reconStats.mismatch / reconTotal) * 100}%` }} />
+                        <div className="h-full bg-amber-500 transition-all" style={{ width: `${(reconStats.pending / reconTotal) * 100}%` }} />
+                      </div>
+
+                      <div className="space-y-1 text-[11px]">
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 text-emerald-700">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Matched
+                          </span>
+                          <span className="font-bold tabular-nums">{reconStats.matched}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 text-red-700">
+                            <span className="h-1.5 w-1.5 rounded-full bg-red-500" /> Mismatch
+                          </span>
+                          <span className="font-bold tabular-nums">{reconStats.mismatch}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1.5 text-amber-700">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Pending
+                          </span>
+                          <span className="font-bold tabular-nums">{reconStats.pending}</span>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-border/60 pt-2 text-[10.5px]">
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span>Discrepancy</span>
+                          <span className={cn(
+                            "font-mono font-semibold tabular-nums",
+                            reconStats.totalDisc > 0 ? "text-red-700" : "text-emerald-700"
+                          )}>
+                            {formatShort(reconStats.totalDisc || 0)}
+                          </span>
+                        </div>
+                        {reconStats.resolved > 0 && (
+                          <div className="mt-0.5 flex items-center justify-between text-muted-foreground">
+                            <span>Resolved</span>
+                            <span className="font-semibold tabular-nums text-blue-700">{reconStats.resolved}</span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Coverage */}
+                  <Card className="relative overflow-hidden border-border/70 shadow-xs">
+                    <div className="pointer-events-none absolute -right-12 -top-12 h-32 w-32 rounded-full bg-gradient-to-br from-violet-200/60 to-blue-100/0 blur-2xl" />
+                    <CardContent className="relative space-y-3 px-5 py-5">
+                      {/* Header */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+                            <Users className="h-3.5 w-3.5" />
+                          </div>
+                          <div className="text-[10.5px] font-semibold uppercase tracking-[.08em] text-muted-foreground">
+                            Coverage
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPage("merchants")}
+                          className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-primary hover:underline"
+                        >
+                          View <ArrowRight className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
+
+                      {/* Headline split */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-lg bg-violet-50/70 px-3 py-2.5 ring-1 ring-violet-200/50">
+                          <div className="text-[22px] font-bold leading-none tracking-tight proportional-nums text-violet-700">
+                            {merchantCount}
+                          </div>
+                          <div className="mt-1 text-[9.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Merchants
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-blue-50/70 px-3 py-2.5 ring-1 ring-blue-200/50">
+                          <div className="text-[22px] font-bold leading-none tracking-tight proportional-nums text-blue-700">
+                            {companyCount}
+                          </div>
+                          <div className="mt-1 text-[9.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Companies
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Top 3 + insight */}
+                      {(() => {
+                        const byMerchant = {};
+                        for (const d of MASTER_DATA) {
+                          byMerchant[d.merchant] = (byMerchant[d.merchant] || 0) + 1;
+                        }
+                        const ranked = Object.entries(byMerchant).sort((a, b) => b[1] - a[1]);
+                        const avg = merchantCount > 0 ? Math.round(companyCount / merchantCount) : 0;
+                        const top3 = ranked.slice(0, 3);
+                        const max = top3[0]?.[1] || 1;
+                        return (
+                          <div className="space-y-1.5 pt-0.5">
+                            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                              <span>
+                                Avg <span className="font-semibold tabular-nums text-foreground">{avg}</span> companies / merchant
+                              </span>
+                              <span>
+                                Top: <span className="font-semibold text-foreground">{top3[0]?.[0] || "—"}</span>
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              {top3.map(([name, count]) => (
+                                <div key={name} className="flex items-center gap-2 text-[10.5px]">
+                                  <span className="w-14 truncate font-semibold text-foreground" title={name}>
+                                    {name}
+                                  </span>
+                                  <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                                    <div
+                                      className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-violet-400 to-violet-600"
+                                      style={{ width: `${(count / max) * 100}%` }}
+                                    />
+                                  </div>
+                                  <span className="w-7 text-right text-[10px] font-semibold tabular-nums text-muted-foreground">
+                                    {count}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })()}
+
+            {/* Top Merchants + Recent Recon */}
+            {(rows.length > 0 || recon.length > 0) && (() => {
+              const topMerchants = (() => {
+                const m = {};
+                rows.forEach((r) => {
+                  if (!m[r.merchant]) m[r.merchant] = { merchant: r.merchant, payin: 0, settlement: 0, count: 0 };
+                  m[r.merchant].payin += r.payin || 0;
+                  m[r.merchant].settlement += r.settlement || 0;
+                  m[r.merchant].count += 1;
+                });
+                return Object.values(m).sort((a, b) => b.settlement - a.settlement).slice(0, 5);
+              })();
+              const maxSettlement = topMerchants[0]?.settlement || 1;
+              const recentIssues = recon
+                .filter((r) => r.status === "Mismatch" && !rResolved[r.id])
+                .slice(-5)
+                .reverse();
+              return (
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  {/* Top Merchants */}
+                  <Card className="border-border/70 shadow-xs">
+                    <CardHeader className="border-b border-border/60 pb-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="text-sm font-semibold tracking-tight">Top Merchants</CardTitle>
+                          <CardDescription className="text-xs">By settlement</CardDescription>
+                        </div>
+                        <Button size="sm" variant="ghost" onClick={() => setPage("reports")} className="text-xs">
+                          All <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="px-5 py-4">
+                      {topMerchants.length === 0 ? (
+                        <div className="py-6 text-center text-xs text-muted-foreground">No data yet</div>
+                      ) : (
+                        <div className="space-y-3">
+                          {topMerchants.map((m, idx) => (
+                            <div key={m.merchant} className="space-y-1.5">
+                              <div className="flex items-center justify-between text-xs">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-primary/10 font-mono text-[10px] font-bold text-primary">
+                                    {idx + 1}
+                                  </span>
+                                  <span className="truncate font-semibold text-foreground">{m.merchant}</span>
+                                  <span className="text-[10px] text-muted-foreground">· {m.count}</span>
+                                </div>
+                                <span className="ml-2 font-mono text-xs font-bold tabular-nums text-emerald-700">
+                                  {formatShort(m.settlement)}
+                                </span>
+                              </div>
+                              <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className="h-full rounded-full bg-gradient-to-r from-violet-400 to-violet-600"
+                                  style={{ width: `${(m.settlement / maxSettlement) * 100}%` }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Recent Recon Issues */}
+                  <Card className="border-border/70 shadow-xs">
+                    <CardHeader className="border-b border-border/60 pb-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="text-sm font-semibold tracking-tight">Open Recon Issues</CardTitle>
+                          <CardDescription className="text-xs">Latest unresolved mismatches</CardDescription>
+                        </div>
+                        <Button size="sm" variant="ghost" onClick={() => setPage("recon")} className="text-xs">
+                          All <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="px-5 py-4">
+                      {recentIssues.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-6 text-center">
+                          <CheckCircle2 className="mb-1.5 h-5 w-5 text-emerald-600" />
+                          <div className="text-xs font-semibold text-foreground">All clear</div>
+                          <div className="text-[11px] text-muted-foreground">No open issues</div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {recentIssues.map((r) => (
+                            <div
+                              key={r.id}
+                              className="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-muted/30 px-3 py-2"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="secondary" className="bg-red-100 px-1.5 py-0 font-mono text-[9.5px] text-red-800 hover:bg-red-100">
+                                    {r.txnId}
+                                  </Badge>
+                                  <span className="truncate text-[11px] font-semibold text-foreground">{r.merchant}</span>
+                                </div>
+                                <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{r.company}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="font-mono text-[11px] font-bold tabular-nums text-red-700">
+                                  {r.diff > 0 ? "+" : ""}{formatINR(r.diff)}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              );
+            })()}
+
             {rows.length > 0 ? (
-              <div
-                style={{
-                  background: C.card,
-                  borderRadius: 14,
-                  border: `1px solid ${C.border}`,
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    padding: "16px 20px",
-                    borderBottom: `1px solid ${C.border}`,
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <span
-                    style={{ fontSize: 15, fontWeight: 700, color: C.text }}
-                  >
-                    Recent Entries
-                  </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                    <button
-                      onClick={() => downloadSheet(rows, "settlements")}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        padding: "6px 14px",
-                        borderRadius: 8,
-                        border: "none",
-                        background: C.accent,
-                        color: "#fff",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      <SI d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12v8m0 0l-4-4m4 4l4-4M12 4v4" />
-                      Download Sheet
-                    </button>
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: C.accent,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
+              <Card className="overflow-hidden border-border/70 shadow-xs">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 px-5 py-4">
+                  <div>
+                    <div className="text-[15px] font-semibold tracking-tight text-foreground">
+                      Recent Entries
+                    </div>
+                    <div className="text-xs text-muted-foreground">Last 5 settlements</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
                       onClick={() => setPage("reports")}
                     >
-                      View All &rarr;
-                    </span>
+                      View all <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => downloadSheet(rows, "settlements")}
+                    >
+                      <SI d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12v8m0 0l-4-4m4 4l4-4M12 4v4" />
+                      Download
+                    </Button>
                   </div>
                 </div>
-                <div style={{ overflowX: "auto" }}>
-                  <table
-                    style={{
-                      width: "100%",
-                      borderCollapse: "collapse",
-                      fontSize: 13,
-                    }}
-                  >
-                    <thead>
-                      <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                        {[
-                          "Merchant",
-                          "Company",
-                          "Payin",
-                          "Settlement",
-                          "Cycle",
-                        ].map((h) => (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/40">
+                      <tr>
+                        {["Merchant", "Company", "Payin", "Settlement", "Cycle"].map((h) => (
                           <th
                             key={h}
-                            style={{
-                              padding: "12px 16px",
-                              textAlign:
-                                h === "Merchant" || h === "Company"
-                                  ? "left"
-                                  : "right",
-                              fontSize: 10,
-                              fontWeight: 600,
-                              color: C.muted,
-                              textTransform: "uppercase",
-                            }}
+                            className={cn(
+                              "px-5 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground",
+                              h === "Merchant" || h === "Company" ? "text-left" : "text-right"
+                            )}
                           >
                             {h}
                           </th>
@@ -2018,754 +2704,495 @@ export default function App() {
                         .map((r) => (
                           <tr
                             key={r.id}
-                            style={{
-                              borderBottom: `1px solid ${C.border}`,
-                            }}
+                            className="border-t border-border/60 transition-colors hover:bg-muted/30"
                           >
-                            <td
-                              style={{
-                                padding: "12px 16px",
-                                fontWeight: 600,
-                                color: C.accent,
-                              }}
-                            >
-                              {r.merchant}
-                            </td>
-                            <td
-                              style={{
-                                padding: "12px 16px",
-                                color: C.text,
-                                maxWidth: 200,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
+                            <td className="px-5 py-3 font-semibold text-primary">{r.merchant}</td>
+                            <td className="max-w-[240px] overflow-hidden text-ellipsis whitespace-nowrap px-5 py-3 text-foreground">
                               {r.company}
                             </td>
-                            <td
-                              style={{
-                                padding: "12px 16px",
-                                textAlign: "right",
-                                fontFamily: "'JetBrains Mono',monospace",
-                                fontWeight: 600,
-                              }}
-                            >
+                            <td className="px-5 py-3 text-right font-mono font-semibold tabular-nums text-foreground">
                               {formatINR(r.payin)}
                             </td>
-                            <td
-                              style={{
-                                padding: "12px 16px",
-                                textAlign: "right",
-                                fontFamily: "'JetBrains Mono',monospace",
-                                fontWeight: 700,
-                                color: C.green,
-                              }}
-                            >
+                            <td className="px-5 py-3 text-right font-mono font-bold tabular-nums text-emerald-700">
                               {formatINR(r.settlement)}
                             </td>
-                            <td
-                              style={{
-                                padding: "12px 16px",
-                                textAlign: "right",
-                              }}
-                            >
-                              <span
-                                style={{
-                                  padding: "3px 10px",
-                                  borderRadius: 6,
-                                  fontSize: 11,
-                                  fontWeight: 600,
-                                  background:
-                                    r.cycle === 2 ? "#fef3c7" : "#d1fae5",
-                                  color:
-                                    r.cycle === 2 ? "#92400e" : "#065f46",
-                                }}
+                            <td className="px-5 py-3 text-right">
+                              <Badge
+                                variant="secondary"
+                                className={cn(
+                                  "font-mono text-[10.5px]",
+                                  r.cycle === 2
+                                    ? "bg-amber-100 text-amber-800 hover:bg-amber-100"
+                                    : "bg-violet-100 text-violet-800 hover:bg-violet-100"
+                                )}
                               >
                                 C{r.cycle}
-                              </span>
+                              </Badge>
                             </td>
                           </tr>
                         ))}
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </Card>
             ) : (
-              <div
-                style={{
-                  background: C.card,
-                  borderRadius: 14,
-                  border: `1px solid ${C.border}`,
-                  padding: "48px 24px",
-                  textAlign: "center",
-                }}
-              >
-                <div style={{ fontSize: 40, marginBottom: 12 }}>
-                  {"\uD83D\uDCCA"}
-                </div>
-                <div
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 600,
-                    color: C.text,
-                    marginBottom: 6,
-                  }}
-                >
-                  No entries yet
-                </div>
-                <button
-                  onClick={() => setPage("add")}
-                  style={{
-                    background: C.accent,
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 10,
-                    padding: "10px 24px",
-                    fontSize: 14,
-                    fontWeight: 600,
-                    cursor: "pointer",
-                  }}
-                >
-                  + Add Entry
-                </button>
-              </div>
+              <Card className="border-dashed border-border/80 bg-background/40 shadow-none">
+                <CardContent className="flex flex-col items-center justify-center px-6 py-16 text-center">
+                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <Receipt className="h-7 w-7" />
+                  </div>
+                  <div className="text-base font-semibold text-foreground">
+                    No entries yet
+                  </div>
+                  <div className="mb-5 mt-1 max-w-sm text-sm text-muted-foreground">
+                    Create your first settlement entry to see KPIs, recent activity, and reconciliation status here.
+                  </div>
+                  <Button onClick={() => setPage("add")}>
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add Entry
+                  </Button>
+                </CardContent>
+              </Card>
             )}
           </div>
         )}
 
         {/* ========== ADD ENTRY ========== */}
         {page === "add" && (
-          <div className="fade-up" style={{ maxWidth: 640 }}>
-            <div
-              style={{
-                background: C.card,
-                borderRadius: 14,
-                border: `1px solid ${C.border}`,
-                padding: 28,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: C.text,
-                  marginBottom: 20,
-                }}
-              >
-                New Settlement Entry
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 16,
-                  marginBottom: 16,
-                }}
-              >
-                <div>
-                  <label style={labS}>Merchant</label>
-                  <select
-                    value={selM}
-                    onChange={(e) => {
-                      setSM(e.target.value);
-                      setSC("");
-                      setCS("");
-                    }}
-                    style={selS}
-                  >
-                    <option value="">&mdash; Select &mdash;</option>
-                    {ALL_MERCHANTS.map((m) => (
-                      <option key={m} value={m}>
-                        {m} ({mCnt[m]})
-                      </option>
-                    ))}
-                  </select>
+          <div className="fade-up">
+            <Card className="border-border shadow-sm">
+              <CardHeader className="border-b border-border/60 pb-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Receipt className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base font-semibold text-foreground">
+                      New Settlement Entry
+                    </CardTitle>
+                    <CardDescription className="text-xs text-muted-foreground">
+                      Charge {(CHARGE_RATE).toFixed(2)}% on payin · GST applied on charge
+                    </CardDescription>
+                  </div>
                 </div>
-                <div style={{ position: "relative" }}>
-                  <label style={labS}>Company</label>
-                  <input
-                    value={selC || cSearch}
-                    onChange={(e) => {
-                      setCS(e.target.value);
-                      setSC("");
-                    }}
-                    placeholder={
-                      selM
-                        ? `Search ${compsFor.length}...`
-                        : "Select merchant"
-                    }
-                    style={inpS}
-                    list="co-l"
-                  />
-                  <datalist id="co-l">
-                    {filtCL.map((c) => (
-                      <option key={c} value={c} />
-                    ))}
-                  </datalist>
-                  {cSearch && !selC && filtCL.length > 0 && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: "100%",
-                        left: 0,
-                        right: 0,
-                        marginTop: 4,
-                        background: "#fff",
-                        border: `1px solid ${C.border}`,
-                        borderRadius: 10,
-                        maxHeight: 180,
-                        overflowY: "auto",
-                        zIndex: 10,
-                        boxShadow: "0 8px 24px rgba(0,0,0,.12)",
+              </CardHeader>
+
+              <CardContent className="space-y-6 pt-6">
+                {/* Row 1: Merchant + Company */}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Merchant
+                    </Label>
+                    <Select
+                      value={selM || undefined}
+                      onValueChange={(v) => {
+                        setSM(v);
+                        setSC("");
+                        setCS("");
                       }}
                     >
-                      {filtCL.slice(0, 8).map((c) => (
-                        <div
-                          key={c}
-                          onClick={() => {
-                            setSC(c);
-                            setCS("");
-                          }}
-                          style={{
-                            padding: "10px 14px",
-                            fontSize: 13,
-                            cursor: "pointer",
-                            borderBottom: `1px solid ${C.border}`,
-                          }}
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.background = "#f0fdf4")
-                          }
-                          onMouseLeave={(e) =>
-                            (e.currentTarget.style.background = "#fff")
-                          }
-                        >
-                          {c}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              {selC && (
-                <div
-                  style={{
-                    marginBottom: 16,
-                    padding: "10px 16px",
-                    background: "#ecfdf5",
-                    borderRadius: 10,
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    border: "1px solid #a7f3d0",
-                  }}
-                >
-                  <div style={{ fontSize: 13 }}>
-                    <span style={{ fontWeight: 700, color: C.accent }}>
-                      {selM}
-                    </span>
-                    <span style={{ color: C.muted, margin: "0 8px" }}>
-                      &rarr;
-                    </span>
-                    <span style={{ color: C.text, fontWeight: 500 }}>
-                      {selC}
-                    </span>
+                      <SelectTrigger className="h-11 w-full">
+                        <SelectValue placeholder="— Select merchant —" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ALL_MERCHANTS.map((m) => (
+                          <SelectItem key={m} value={m}>
+                            <span className="font-medium">{m}</span>
+                            <span className="ml-2 text-xs text-muted-foreground">({mCnt[m]})</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <button
-                    onClick={() => {
-                      setSC("");
-                      setCS("");
-                    }}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: C.muted,
-                      cursor: "pointer",
-                      fontSize: 18,
-                    }}
-                  >
-                    &times;
-                  </button>
-                </div>
-              )}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.2fr 1fr 1fr",
-                  gap: 14,
-                  marginBottom: 16,
-                }}
-              >
-                <div>
-                  <label style={labS}>Payin Amount (₹)</label>
-                  <input
-                    type="number"
-                    value={payin}
-                    onChange={(e) => setPay(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addRow()}
-                    placeholder="e.g. 10000"
-                    style={{
-                      ...inpS,
-                      fontSize: 18,
-                      fontFamily: "'JetBrains Mono',monospace",
-                      fontWeight: 600,
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={labS}>
-                    Chargeback (₹){" "}
-                    <span style={{ color: C.muted, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>
-                      optional
-                    </span>
-                  </label>
-                  <input
-                    type="number"
-                    value={chargeback}
-                    onChange={(e) => setChargeback(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && addRow()}
-                    placeholder="0"
-                    style={{
-                      ...inpS,
-                      fontSize: 18,
-                      fontFamily: "'JetBrains Mono',monospace",
-                      fontWeight: 600,
-                      color: cb > 0 ? C.red : C.text,
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={labS}>GST Rate</label>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    {GST_OPTIONS.map((opt) => (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => setGstRate(opt)}
-                        style={{
-                          flex: 1,
-                          padding: "12px 4px",
-                          borderRadius: 10,
-                          border: `1.5px solid ${gstRate === opt ? C.accent : C.border}`,
-                          background: gstRate === opt ? C.accent : "#fff",
-                          color: gstRate === opt ? "#fff" : C.muted,
-                          fontSize: 13,
-                          fontWeight: 700,
-                          cursor: "pointer",
-                          fontFamily: "'JetBrains Mono',monospace",
-                          transition: "all .15s",
+
+                  <div className="relative space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Company
+                    </Label>
+                    <div className="relative">
+                      <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                      <Input
+                        value={selC || cSearch}
+                        onChange={(e) => {
+                          setCS(e.target.value);
+                          setSC("");
                         }}
-                      >
-                        {opt}%
-                      </button>
-                    ))}
+                        placeholder={
+                          selM ? `Search ${compsFor.length} companies…` : "Select merchant first"
+                        }
+                        disabled={!selM}
+                        className="h-11 pl-9"
+                        list="co-l"
+                      />
+                    </div>
+                    <datalist id="co-l">
+                      {filtCL.map((c) => (
+                        <option key={c} value={c} />
+                      ))}
+                    </datalist>
+                    {cSearch && !selC && filtCL.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-md border border-border bg-popover shadow-lg">
+                        {filtCL.slice(0, 8).map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => {
+                              setSC(c);
+                              setCS("");
+                            }}
+                            className="block w-full border-b border-border/60 px-3 py-2.5 text-left text-xs text-popover-foreground last:border-b-0 hover:bg-accent hover:text-accent-foreground"
+                          >
+                            {c}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: 14,
-                  marginBottom: 16,
-                }}
-              >
-                <div>
-                  <label style={labS}>
-                    Entry Date{" "}
-                    <span style={{ color: C.muted, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>
-                      (defaults to today)
-                    </span>
-                  </label>
-                  <input
-                    type="date"
-                    value={entryDate}
-                    onChange={(e) => setEntryDate(e.target.value)}
-                    style={inpS}
-                  />
-                </div>
-                <div>
-                  <label style={labS}>
-                    Cycle{" "}
-                    <span style={{ color: C.muted, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>
-                      (auto: C{cyc.cycle})
-                    </span>
-                  </label>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    {[
-                      { c: null, label: "Auto", sub: `C${cyc.cycle}` },
-                      { c: 1, label: "C1", sub: "6AM–4PM" },
-                      { c: 2, label: "C2", sub: "4PM–6AM" },
-                    ].map((opt) => {
-                      const active = entryCycle === opt.c;
-                      return (
-                        <button
-                          key={opt.label}
-                          type="button"
-                          onClick={() => setEntryCycle(opt.c)}
-                          style={{
-                            flex: 1,
-                            padding: "8px 4px",
-                            borderRadius: 10,
-                            border: `1.5px solid ${active ? C.accent : C.border}`,
-                            background: active ? C.accent : "#fff",
-                            color: active ? "#fff" : C.muted,
-                            cursor: "pointer",
-                            transition: "all .15s",
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            gap: 2,
-                          }}
-                        >
-                          <span style={{ fontSize: 12, fontWeight: 700 }}>{opt.label}</span>
-                          <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.85 }}>{opt.sub}</span>
-                        </button>
-                      );
-                    })}
+
+                {/* Selected pair chip */}
+                {selC && (
+                  <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Badge variant="secondary" className="bg-primary/15 text-primary hover:bg-primary/15">
+                        {selM}
+                      </Badge>
+                      <span className="text-muted-foreground">→</span>
+                      <span className="font-medium text-foreground">{selC}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setSC("");
+                        setCS("");
+                      }}
+                      className="h-7 w-7 text-muted-foreground hover:bg-primary/10 hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Row 2: Payin + Chargeback + GST */}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.2fr_1fr_1.2fr]">
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Payin Amount (₹)
+                    </Label>
+                    <div className="relative">
+                      <IndianRupee className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                      <Input
+                        type="number"
+                        value={payin}
+                        onChange={(e) => setPay(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && addRow()}
+                        placeholder="10,000"
+                        className="h-11 pl-9 font-mono text-base font-semibold tabular-nums"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-baseline justify-between text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <span>Chargeback (₹)</span>
+                      <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground/70">optional</span>
+                    </Label>
+                    <Input
+                      type="number"
+                      value={chargeback}
+                      onChange={(e) => setChargeback(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addRow()}
+                      placeholder="0"
+                      className={cn(
+                        "h-11 font-mono text-base font-semibold tabular-nums",
+                        cb > 0 && "text-destructive"
+                      )}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      GST Rate
+                    </Label>
+                    <div className="inline-flex h-11 w-full items-center rounded-md bg-muted p-1">
+                      {GST_OPTIONS.map((opt) => {
+                        const active = gstRate === opt;
+                        return (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => setGstRate(opt)}
+                            className={cn(
+                              "flex-1 rounded-sm font-mono text-xs font-bold transition-all",
+                              "h-full",
+                              active
+                                ? "bg-background text-primary shadow-sm"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            {opt}%
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div style={{ marginBottom: 20 }}>
-                <button
+
+                {/* Row 3: Date + Cycle */}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label className="flex items-baseline justify-between text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <span>Entry Date</span>
+                      <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground/70">defaults to today</span>
+                    </Label>
+                    <div className="relative">
+                      <CalendarIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                      <Input
+                        type="date"
+                        value={entryDate}
+                        onChange={(e) => setEntryDate(e.target.value)}
+                        className="h-11 pl-9"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-baseline justify-between text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      <span>Cycle</span>
+                      <span className="text-[10px] font-normal normal-case tracking-normal text-muted-foreground/70">auto: C{cyc.cycle}</span>
+                    </Label>
+                    <div className="grid h-11 grid-cols-3 gap-1.5">
+                      {[
+                        { c: null, label: "Auto", sub: `C${cyc.cycle}`, icon: null },
+                        { c: 1, label: "C1", sub: "6AM–4PM", icon: Sun },
+                        { c: 2, label: "C2", sub: "4PM–6AM", icon: Moon },
+                      ].map((opt) => {
+                        const active = entryCycle === opt.c;
+                        const Icon = opt.icon;
+                        return (
+                          <button
+                            key={opt.label}
+                            type="button"
+                            onClick={() => setEntryCycle(opt.c)}
+                            className={cn(
+                              "flex flex-col items-center justify-center gap-0.5 rounded-md border text-xs font-semibold transition-all",
+                              active
+                                ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                                : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:bg-accent hover:text-foreground"
+                            )}
+                          >
+                            <span className="flex items-center gap-1 leading-none">
+                              {Icon && <Icon className="h-3 w-3" />}
+                              {opt.label}
+                            </span>
+                            <span className={cn("text-[9px] font-medium leading-none", active ? "opacity-90" : "opacity-70")}>{opt.sub}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Submit */}
+                <Button
                   onClick={addRow}
                   disabled={!canAdd}
-                  style={{
-                    background: canAdd ? C.accent : "#e2e8f0",
-                    color: canAdd ? "#fff" : "#94a3b8",
-                    border: "none",
-                    borderRadius: 10,
-                    padding: "14px 28px",
-                    fontSize: 15,
-                    fontWeight: 700,
-                    cursor: canAdd ? "pointer" : "not-allowed",
-                    whiteSpace: "nowrap",
-                    width: "100%",
-                  }}
+                  size="lg"
+                  className="h-12 w-full text-sm font-semibold tracking-wide"
                 >
-                  + Add Entry
-                </button>
-              </div>
-              {pn > 0 && (
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(5,1fr)",
-                    gap: 10,
-                  }}
-                >
-                  {[
-                    { l: "Charge", v: ch, c: C.orange },
-                    { l: `GST (${gstRate}%)`, v: gs, c: C.red },
-                    { l: "Chargeback", v: cb, c: "#dc2626" },
-                    { l: "Deduction", v: td, c: "#f97316" },
-                    { l: "Final Settlement", v: stl, c: C.green },
-                  ].map((x) => (
-                    <div
-                      key={x.l}
-                      style={{
-                        background: C.bg,
-                        borderRadius: 10,
-                        padding: 12,
-                        borderLeft: `3px solid ${x.c}`,
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: 9,
-                          color: C.muted,
-                          textTransform: "uppercase",
-                          fontWeight: 600,
-                          marginBottom: 4,
-                        }}
-                      >
-                        {x.l}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 14,
-                          fontFamily: "'JetBrains Mono',monospace",
-                          fontWeight: 700,
-                          color: x.c,
-                        }}
-                      >
-                        {formatINR(x.v)}
-                      </div>
+                  <Plus className="mr-1 h-4 w-4" />
+                  Add Entry
+                </Button>
+
+                {/* Preview totals */}
+                {pn > 0 && (
+                  <>
+                    <Separator />
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                      {[
+                        { l: "Charge", v: ch, tone: "amber" },
+                        { l: `GST (${gstRate}%)`, v: gs, tone: "rose" },
+                        { l: "Chargeback", v: cb, tone: "red" },
+                        { l: "Deduction", v: td, tone: "orange" },
+                        { l: "Final Settlement", v: stl, tone: "primary" },
+                      ].map((x) => {
+                        const toneMap = {
+                          amber: { bar: "bg-amber-500", text: "text-amber-600" },
+                          rose: { bar: "bg-rose-500", text: "text-rose-600" },
+                          red: { bar: "bg-red-600", text: "text-red-700" },
+                          orange: { bar: "bg-orange-500", text: "text-orange-600" },
+                          primary: { bar: "bg-primary", text: "text-primary" },
+                        }[x.tone];
+                        return (
+                          <div
+                            key={x.l}
+                            className="relative overflow-hidden rounded-lg border border-border bg-muted/40 p-3"
+                          >
+                            <div className={cn("absolute left-0 top-0 h-full w-1", toneMap.bar)} />
+                            <div className="pl-1.5">
+                              <div className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                {x.l}
+                              </div>
+                              <div className={cn("font-mono text-sm font-bold tabular-nums", toneMap.text)}>
+                                {formatINR(x.v)}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
           </div>
         )}
 
         {/* ========== REPORTS ========== */}
         {page === "reports" && (
-          <div className="fade-up">
-            <div
-              style={{
-                background: C.card,
-                borderRadius: 14,
-                border: `1px solid ${C.border}`,
-                padding: "14px 20px",
-                marginBottom: 20,
-                display: "flex",
-                flexWrap: "wrap",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  gap: 4,
-                  background: C.bg,
-                  borderRadius: 8,
-                  padding: 3,
-                }}
-              >
-                {[
-                  { k: "all", l: "All" },
-                  { k: "company", l: "Company" },
-                  { k: "merchant", l: "Merchant" },
-                ].map((t) => (
-                  <button
-                    key={t.k}
-                    onClick={() => setView(t.k)}
-                    style={{
-                      background: view === t.k ? C.accent : "transparent",
-                      color: view === t.k ? "#fff" : C.muted,
-                      border: "none",
-                      borderRadius: 6,
-                      padding: "8px 16px",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      cursor: "pointer",
-                    }}
+          <div className="fade-up space-y-5">
+            <Card className="border-border/70 shadow-xs">
+              <CardContent className="flex flex-wrap items-center gap-3 px-5 py-4">
+                <div className="-mx-1 max-w-full overflow-x-auto px-1">
+                  <Tabs value={view} onValueChange={setView}>
+                    <TabsList>
+                      <TabsTrigger value="all">All</TabsTrigger>
+                      <TabsTrigger value="company">By Company</TabsTrigger>
+                      <TabsTrigger value="merchant">By Merchant</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                  <Select
+                    value={fM}
+                    onValueChange={setFM}
                   >
-                    {t.l}
-                  </button>
-                ))}
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  flex: 1,
-                  justifyContent: "flex-end",
-                }}
-              >
-                <select
-                  value={fM}
-                  onChange={(e) => setFM(e.target.value)}
-                  style={filtS}
-                >
-                  <option value="__all__">All Merchants</option>
-                  {[...new Set(rows.map((r) => r.merchant))]
-                    .sort()
-                    .map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                </select>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "4px 10px",
-                    borderRadius: 8,
-                    border: `1px solid ${C.border}`,
-                    background: "#fff",
-                  }}
-                  title="Filter downloads by date range"
-                >
-                  <span style={{ fontSize: 10, fontWeight: 600, color: C.muted, textTransform: "uppercase" }}>
-                    From
-                  </span>
-                  <input
-                    type="date"
-                    value={dlFrom}
-                    onChange={(e) => setDlFrom(e.target.value)}
-                    style={{ border: "none", fontSize: 12, color: C.text, padding: 0, outline: "none" }}
-                  />
-                  <span style={{ fontSize: 10, fontWeight: 600, color: C.muted, textTransform: "uppercase" }}>
-                    To
-                  </span>
-                  <input
-                    type="date"
-                    value={dlTo}
-                    onChange={(e) => setDlTo(e.target.value)}
-                    style={{ border: "none", fontSize: 12, color: C.text, padding: 0, outline: "none" }}
-                  />
-                  {(dlFrom || dlTo) && (
-                    <button
-                      onClick={() => { setDlFrom(""); setDlTo(""); }}
-                      style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", fontSize: 14, padding: 0 }}
-                      title="Clear date range"
-                    >
-                      &times;
-                    </button>
+                    <SelectTrigger className="h-9 w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">All Merchants</SelectItem>
+                      {[...new Set(rows.map((r) => r.merchant))]
+                        .sort()
+                        .map((m) => (
+                          <SelectItem key={m} value={m}>{m}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+
+                  <div
+                    className="flex h-9 min-w-0 items-center gap-2 rounded-md border border-border bg-background px-2.5"
+                    title="Filter downloads by date range"
+                  >
+                    <CalendarIcon className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
+                    <input
+                      type="date"
+                      value={dlFrom}
+                      onChange={(e) => setDlFrom(e.target.value)}
+                      className="w-[110px] min-w-0 border-0 bg-transparent text-xs outline-none"
+                    />
+                    <span className="text-[10px] font-semibold uppercase text-muted-foreground">to</span>
+                    <input
+                      type="date"
+                      value={dlTo}
+                      onChange={(e) => setDlTo(e.target.value)}
+                      className="w-[110px] min-w-0 border-0 bg-transparent text-xs outline-none"
+                    />
+                    {(dlFrom || dlTo) && (
+                      <button
+                        type="button"
+                        onClick={() => { setDlFrom(""); setDlTo(""); }}
+                        className="text-muted-foreground hover:text-foreground"
+                        title="Clear date range"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {rows.length > 0 && (
+                    <>
+                      <Button
+                        size="sm"
+                        onClick={() => downloadSheet(fRows, "settlement_report")}
+                      >
+                        <Download className="mr-1 h-3.5 w-3.5" />
+                        Download
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={clearAll}
+                        className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
+                      >
+                        <Trash2 className="mr-1 h-3.5 w-3.5" />
+                        Clear all
+                      </Button>
+                    </>
                   )}
                 </div>
-                {rows.length > 0 && (
-                  <>
-                    <button
-                      onClick={() => downloadSheet(fRows, "settlement_report")}
-                      style={{
-                        ...filtS,
-                        border: `1px solid ${C.accent}`,
-                        background: C.accent,
-                        color: "#fff",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                      }}
-                    >
-                      <SI d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12v8m0 0l-4-4m4 4l4-4M12 4v4" />
-                      Download Sheet
-                    </button>
-                    <button
-                      onClick={clearAll}
-                      style={{
-                        ...filtS,
-                        border: "1px solid #fca5a5",
-                        background: "#fef2f2",
-                        color: C.red,
-                      }}
-                    >
-                      Clear All
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
+              </CardContent>
+            </Card>
+
             {grouped && grouped.length > 0 && (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "repeat(auto-fill,minmax(260px,1fr))",
-                  gap: 14,
-                  marginBottom: 20,
-                }}
-              >
+              <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))" }}>
                 {grouped.map((g, i) => (
-                  <div
+                  <Card
                     key={i}
-                    className="fade-up"
-                    style={{
-                      background: C.card,
-                      border: `1px solid ${C.border}`,
-                      borderRadius: 14,
-                      padding: 20,
-                      borderTop: `3px solid ${view === "company" ? C.accent : C.green}`,
-                    }}
+                    className="fade-up overflow-hidden border-border/70 shadow-xs"
                   >
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 700,
-                        color: C.text,
-                        marginBottom: 10,
-                        lineHeight: 1.3,
-                      }}
-                    >
-                      {g.name}
-                    </div>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: 8,
-                      }}
-                    >
-                      {[
-                        { l: "Entries", v: g.count, raw: 1, c: C.muted },
-                        { l: "Total Payin", v: g.payin, c: C.text },
-                        { l: "Deductions", v: g.deduction, c: C.orange },
-                        { l: "Settlement", v: g.settlement, c: C.green },
-                      ].map((x) => (
-                        <div key={x.l}>
-                          <div
-                            style={{
-                              fontSize: 9,
-                              color: C.muted,
-                              textTransform: "uppercase",
-                              fontWeight: 600,
-                            }}
-                          >
-                            {x.l}
+                    <div className={cn("h-1 w-full", view === "company" ? "bg-primary" : "bg-emerald-500")} />
+                    <CardContent className="px-5 py-4">
+                      <div className="mb-3 text-sm font-semibold leading-snug tracking-tight text-foreground">
+                        {g.name}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {[
+                          { l: "Entries", v: g.count, raw: 1, c: "text-muted-foreground" },
+                          { l: "Total Payin", v: g.payin, c: "text-foreground" },
+                          { l: "Deductions", v: g.deduction, c: "text-amber-600" },
+                          { l: "Settlement", v: g.settlement, c: "text-emerald-700" },
+                        ].map((x) => (
+                          <div key={x.l}>
+                            <div className="text-[9.5px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              {x.l}
+                            </div>
+                            <div className={cn("font-mono text-[13px] font-bold tabular-nums", x.c)}>
+                              {x.raw ? x.v : formatINR(x.v)}
+                            </div>
                           </div>
-                          <div
-                            style={{
-                              fontSize: 13,
-                              fontFamily: "'JetBrains Mono',monospace",
-                              fontWeight: 700,
-                              color: x.c,
-                            }}
-                          >
-                            {x.raw ? x.v : formatINR(x.v)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             )}
+
             {fRows.length > 0 && view === "all" && (
-              <div
-                style={{
-                  background: C.card,
-                  borderRadius: 14,
-                  border: `1px solid ${C.border}`,
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    padding: "14px 20px",
-                    borderBottom: `1px solid ${C.border}`,
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: C.text,
-                  }}
-                >
-                  All Entries ({fRows.length})
+              <Card className="overflow-hidden border-border/70 shadow-xs">
+                <div className="flex items-center justify-between border-b border-border/70 px-5 py-3.5">
+                  <div>
+                    <div className="text-sm font-semibold tracking-tight text-foreground">
+                      All Entries
+                    </div>
+                    <div className="text-xs text-muted-foreground">{fRows.length} rows</div>
+                  </div>
                 </div>
-                <div style={{ overflowX: "auto" }}>
-                  <table
-                    style={{
-                      width: "100%",
-                      borderCollapse: "collapse",
-                      fontSize: 13,
-                    }}
-                  >
-                    <thead>
-                      <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-                        {[
-                          "#",
-                          "Merchant",
-                          "Company",
-                          "Payin",
-                          "Deduction",
-                          "Settlement",
-                          "C",
-                          "",
-                        ].map((h, i) => (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/40">
+                      <tr>
+                        {["#", "Merchant", "Company", "Payin", "Deduction", "Settlement", "Cycle", ""].map((h, i) => (
                           <th
                             key={i}
-                            style={{
-                              padding: "11px 14px",
-                              textAlign: i <= 2 ? "left" : "right",
-                              fontSize: 10,
-                              fontWeight: 700,
-                              color: C.muted,
-                              textTransform: "uppercase",
-                            }}
+                            className={cn(
+                              "px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground",
+                              i <= 2 ? "text-left" : "text-right"
+                            )}
                           >
                             {h}
                           </th>
@@ -2776,384 +3203,258 @@ export default function App() {
                       {fRows.map((r, i) => (
                         <tr
                           key={r.id}
-                          style={{
-                            borderBottom: `1px solid ${C.border}`,
-                          }}
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.background = "#f8fafc")
-                          }
-                          onMouseLeave={(e) =>
-                            (e.currentTarget.style.background = "#fff")
-                          }
+                          className="border-t border-border/60 transition-colors hover:bg-muted/30"
                         >
+                          <td className="px-4 py-2.5 text-[11px] text-muted-foreground">{i + 1}</td>
+                          <td className="px-4 py-2.5 font-semibold text-primary">{r.merchant}</td>
                           <td
-                            style={{
-                              padding: "10px 14px",
-                              color: C.muted,
-                              fontSize: 11,
-                            }}
-                          >
-                            {i + 1}
-                          </td>
-                          <td
-                            style={{
-                              padding: "10px 14px",
-                              fontWeight: 600,
-                              color: C.accent,
-                            }}
-                          >
-                            {r.merchant}
-                          </td>
-                          <td
-                            style={{
-                              padding: "10px 14px",
-                              color: C.text,
-                              maxWidth: 200,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
+                            className="max-w-[220px] overflow-hidden text-ellipsis whitespace-nowrap px-4 py-2.5 text-foreground"
                             title={r.company}
                           >
                             {r.company}
                           </td>
-                          <td
-                            style={{
-                              padding: "10px 14px",
-                              textAlign: "right",
-                              fontFamily: "'JetBrains Mono',monospace",
-                              fontWeight: 600,
-                            }}
-                          >
+                          <td className="px-4 py-2.5 text-right font-mono font-semibold tabular-nums text-foreground">
                             {formatINR(r.payin)}
                           </td>
-                          <td
-                            style={{
-                              padding: "10px 14px",
-                              textAlign: "right",
-                              fontFamily: "'JetBrains Mono',monospace",
-                              color: C.orange,
-                            }}
-                          >
+                          <td className="px-4 py-2.5 text-right font-mono tabular-nums text-amber-600">
                             {formatINR(r.deduction)}
                           </td>
-                          <td
-                            style={{
-                              padding: "10px 14px",
-                              textAlign: "right",
-                              fontFamily: "'JetBrains Mono',monospace",
-                              fontWeight: 700,
-                              color: C.green,
-                            }}
-                          >
+                          <td className="px-4 py-2.5 text-right font-mono font-bold tabular-nums text-emerald-700">
                             {formatINR(r.settlement)}
                           </td>
-                          <td
-                            style={{
-                              padding: "10px 14px",
-                              textAlign: "center",
-                            }}
-                          >
-                            <span
-                              style={{
-                                padding: "2px 8px",
-                                borderRadius: 5,
-                                fontSize: 11,
-                                fontWeight: 600,
-                                background:
-                                  r.cycle === 2 ? "#fef3c7" : "#d1fae5",
-                                color:
-                                  r.cycle === 2 ? "#92400e" : "#065f46",
-                              }}
+                          <td className="px-4 py-2.5 text-right">
+                            <Badge
+                              variant="secondary"
+                              className={cn(
+                                "font-mono text-[10.5px]",
+                                r.cycle === 2
+                                  ? "bg-amber-100 text-amber-800 hover:bg-amber-100"
+                                  : "bg-violet-100 text-violet-800 hover:bg-violet-100"
+                              )}
                             >
                               C{r.cycle}
-                            </span>
+                            </Badge>
                           </td>
-                          <td style={{ padding: "10px 8px" }}>
-                            <button
+                          <td className="px-2 py-2.5 text-right">
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={() => rmRow(r.id)}
-                              style={{
-                                background: "none",
-                                border: "none",
-                                color: "#cbd5e1",
-                                cursor: "pointer",
-                                fontSize: 16,
-                              }}
+                              className="h-7 w-7 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
                             >
-                              &times;
-                            </button>
+                              <X className="h-4 w-4" />
+                            </Button>
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </Card>
             )}
+
             {rows.length === 0 && (
-              <div
-                style={{
-                  background: C.card,
-                  borderRadius: 14,
-                  border: `1px solid ${C.border}`,
-                  padding: "48px 24px",
-                  textAlign: "center",
-                  color: C.muted,
-                }}
-              >
-                No entries.{" "}
-                <span
-                  style={{
-                    color: C.accent,
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
-                  onClick={() => setPage("add")}
-                >
-                  Add one &rarr;
-                </span>
-              </div>
+              <Card className="border-dashed border-border/80 bg-background/40 shadow-none">
+                <CardContent className="flex flex-col items-center justify-center px-6 py-14 text-center">
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <FileSpreadsheet className="h-6 w-6" />
+                  </div>
+                  <div className="text-base font-semibold text-foreground">No entries yet</div>
+                  <div className="mb-4 mt-1 text-sm text-muted-foreground">
+                    Add your first settlement to populate this report.
+                  </div>
+                  <Button onClick={() => setPage("add")}>
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add Entry
+                  </Button>
+                </CardContent>
+              </Card>
             )}
           </div>
         )}
 
         {/* ========== RECONCILIATION ========== */}
         {page === "recon" && (
-          <div className="fade-up">
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))",
-                gap: 14,
-                marginBottom: 24,
-              }}
-            >
+          <div className="fade-up space-y-5">
+            <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))" }}>
               {[
-                {
-                  l: "Total Checked",
-                  v: reconStats.total,
-                  c: C.blue,
-                  bg: "#eff6ff",
-                },
-                {
-                  l: "Matched",
-                  v: reconStats.matched,
-                  c: C.green,
-                  bg: "#ecfdf5",
-                },
-                {
-                  l: "Mismatch",
-                  v: reconStats.mismatch,
-                  c: C.red,
-                  bg: "#fef2f2",
-                },
-                {
-                  l: "Pending",
-                  v: reconStats.pending,
-                  c: C.orange,
-                  bg: "#fffbeb",
-                },
-                {
-                  l: "Resolved",
-                  v: reconStats.resolved,
-                  c: C.blue,
-                  bg: "#eff6ff",
-                },
-                {
-                  l: "Total Discrepancy",
-                  v: formatINR(reconStats.totalDisc),
-                  c: C.red,
-                  bg: "#fef2f2",
-                  raw: 1,
-                },
-              ].map((s, i) => (
-                <div
-                  key={i}
-                  style={{
-                    background: C.card,
-                    borderRadius: 12,
-                    padding: "16px 18px",
-                    border: `1px solid ${C.border}`,
-                    borderTop: `3px solid ${s.c}`,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: C.muted,
-                      textTransform: "uppercase",
-                      letterSpacing: ".5px",
-                      marginBottom: 6,
-                    }}
-                  >
-                    {s.l}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: s.raw ? 16 : 24,
-                      fontWeight: 700,
-                      color: s.c,
-                      fontFamily: "'JetBrains Mono',monospace",
-                    }}
-                  >
-                    {s.v}
-                  </div>
-                </div>
-              ))}
+                { l: "Total Checked", v: reconStats.total, tone: "violet" },
+                { l: "Matched", v: reconStats.matched, tone: "emerald" },
+                { l: "Mismatch", v: reconStats.mismatch, tone: "red" },
+                { l: "Pending", v: reconStats.pending, tone: "amber" },
+                { l: "Resolved", v: reconStats.resolved, tone: "blue" },
+                { l: "Total Discrepancy", v: formatINR(reconStats.totalDisc), tone: "red", raw: 1 },
+              ].map((s, i) => {
+                const toneMap = {
+                  violet: { value: "text-violet-700", bg: "from-violet-200/60 to-violet-100/0" },
+                  emerald: { value: "text-emerald-700", bg: "from-emerald-200/60 to-emerald-100/0" },
+                  red: { value: "text-red-700", bg: "from-red-200/60 to-red-100/0" },
+                  amber: { value: "text-amber-700", bg: "from-amber-200/60 to-amber-100/0" },
+                  blue: { value: "text-blue-700", bg: "from-blue-200/60 to-blue-100/0" },
+                }[s.tone];
+                return (
+                  <Card key={i} className="relative overflow-hidden border-border/70 shadow-xs">
+                    <div className={cn("pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-gradient-to-br blur-2xl", toneMap.bg)} />
+                    <CardContent className="relative px-5 py-4">
+                      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[.08em] text-muted-foreground">
+                        {s.l}
+                      </div>
+                      <div className={cn("font-mono font-bold tabular-nums leading-none", s.raw ? "text-[17px]" : "text-[24px]", toneMap.value)}>
+                        {s.v}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
 
             {/* Reconciliation Uploads */}
-            <div
-              style={{
-                background: C.card,
-                borderRadius: 14,
-                border: `1px solid ${C.border}`,
-                padding: 24,
-                marginBottom: 20,
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+            <Card className="border-border/70 shadow-xs">
+              <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 border-b border-border/60 pb-4">
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>
+                  <CardTitle className="text-[15px] font-semibold tracking-tight text-foreground">
                     Reconciliation Uploads
-                  </div>
-                  <div style={{ fontSize: 12, color: C.muted, marginTop: 2 }}>
+                  </CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground">
                     Upload internal payin and bank settlement files — auto-aggregates by merchant
-                  </div>
+                  </CardDescription>
                 </div>
                 {(bankRows.length > 0 || sourceRows.length > 0) && (
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      onClick={downloadBankRecon}
-                      style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: C.accent, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
-                    >
-                      <SI d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12v8m0 0l-4-4m4 4l4-4M12 4v4" />
-                      Download Recon
-                    </button>
-                  </div>
+                  <Button size="sm" onClick={downloadBankRecon}>
+                    <Download className="mr-1 h-3.5 w-3.5" />
+                    Download Recon
+                  </Button>
                 )}
-              </div>
-
-              {/* Two side-by-side drop zones */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                {/* Source / internal payin */}
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: ".5px" }}>
-                      1. Internal Payin
-                    </div>
-                    {sourceRows.length > 0 && (
-                      <button onClick={clearSource} style={{ background: "none", border: "none", color: C.muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                        Clear ×
-                      </button>
-                    )}
-                  </div>
-                  {sourceRows.length === 0 ? (
-                    <div
-                      onDragOver={(e) => { e.preventDefault(); setSourceDragging(true); }}
-                      onDragLeave={() => setSourceDragging(false)}
-                      onDrop={handleSourceDrop}
-                      onClick={() => document.getElementById("source-file-input")?.click()}
-                      style={{
-                        background: sourceDragging ? "#eff6ff" : C.bg,
-                        border: sourceDragging ? `2.5px dashed ${C.blue}` : `2px dashed ${C.border}`,
-                        borderRadius: 12,
-                        padding: "24px 14px",
-                        textAlign: "center",
-                        cursor: "pointer",
-                        transition: "all .2s",
-                      }}
-                    >
-                      <input id="source-file-input" type="file" accept=".csv,.xlsx,.xls" onChange={handleSourceInput} style={{ display: "none" }} />
-                      <div style={{ fontSize: 24, marginBottom: 6 }}>{sourceDragging ? "📥" : "📊"}</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 2 }}>
-                        {sourceDragging ? "Drop here" : "Drag & drop internal payin Excel"}
+              </CardHeader>
+              <CardContent className="space-y-4 pt-5">
+                {/* Two side-by-side drop zones */}
+                <div className="grid gap-3 md:grid-cols-2">
+                  {/* Source / internal payin */}
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        1. Internal Payin
                       </div>
-                      <div style={{ fontSize: 10, color: C.muted }}>
-                        Detects: Row Labels / Name + Sum of Amount
-                      </div>
+                      {sourceRows.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={clearSource}
+                          className="text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+                        >
+                          Clear ×
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <div style={{ padding: "12px 14px", background: "#eff6ff", borderRadius: 10, border: "1px solid #bfdbfe", fontSize: 11, color: "#1e40af" }}>
-                      <div><strong>📊 {sourceFile}</strong></div>
-                      <div style={{ marginTop: 4 }}>
-                        {sourceRows.length} companies · {sourceByMerchant.size} merchants · Total{" "}
-                        <strong>{formatINR(sourceRows.reduce((s, r) => s + r.amount, 0))}</strong>
-                      </div>
-                    </div>
-                  )}
-                  {sourceError && (
-                    <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 6, background: "#fef2f2", border: "1px solid #fca5a5", color: "#991b1b", fontSize: 11, fontWeight: 600 }}>
-                      {sourceError}
-                    </div>
-                  )}
-                </div>
-
-                {/* Bank settlement */}
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: ".5px" }}>
-                      2. Bank Settlement
-                    </div>
-                    {bankRows.length > 0 && (
-                      <button onClick={clearBank} style={{ background: "none", border: "none", color: C.muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                        Clear ×
-                      </button>
-                    )}
-                  </div>
-                  {bankRows.length === 0 ? (
-                    <div
-                      onDragOver={(e) => { e.preventDefault(); setBankDragging(true); }}
-                      onDragLeave={() => setBankDragging(false)}
-                      onDrop={handleBankDrop}
-                      onClick={() => document.getElementById("bank-file-input")?.click()}
-                      style={{
-                        background: bankDragging ? "#ecfdf5" : C.bg,
-                        border: bankDragging ? `2.5px dashed ${C.accent}` : `2px dashed ${C.border}`,
-                        borderRadius: 12,
-                        padding: "24px 14px",
-                        textAlign: "center",
-                        cursor: "pointer",
-                        transition: "all .2s",
-                      }}
-                    >
-                      <input id="bank-file-input" type="file" accept=".csv,.xlsx,.xls" onChange={handleBankInput} style={{ display: "none" }} />
-                      <div style={{ fontSize: 24, marginBottom: 6 }}>{bankDragging ? "📥" : "🏦"}</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 2 }}>
-                        {bankDragging ? "Drop here" : "Drag & drop bank settlement Excel"}
-                      </div>
-                      <div style={{ fontSize: 10, color: C.muted }}>
-                        Detects: MID · Name · Amount · Fee · GST · Settle · Chargeback
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ padding: "12px 14px", background: "#ecfdf5", borderRadius: 10, border: "1px solid #a7f3d0", fontSize: 11, color: "#065f46" }}>
-                      <div><strong>🏦 {bankFile}</strong></div>
-                      <div style={{ marginTop: 4 }}>
-                        {bankRows.length} companies · {bankByMerchant.length} merchants
-                        {bankTotals.unmatched > 0 && (
-                          <span style={{ color: "#991b1b", marginLeft: 6 }}>· {bankTotals.unmatched} unmatched</span>
+                    {sourceRows.length === 0 ? (
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); setSourceDragging(true); }}
+                        onDragLeave={() => setSourceDragging(false)}
+                        onDrop={handleSourceDrop}
+                        onClick={() => document.getElementById("source-file-input")?.click()}
+                        className={cn(
+                          "cursor-pointer rounded-xl border-2 border-dashed px-4 py-7 text-center transition-all",
+                          sourceDragging
+                            ? "border-blue-400 bg-blue-50/70"
+                            : "border-border bg-muted/30 hover:border-primary/40 hover:bg-muted/50"
                         )}
+                      >
+                        <input id="source-file-input" type="file" accept=".csv,.xlsx,.xls" onChange={handleSourceInput} className="hidden" />
+                        <div className={cn("mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl", sourceDragging ? "bg-blue-100 text-blue-700" : "bg-primary/10 text-primary")}>
+                          {sourceDragging ? <Upload className="h-5 w-5" /> : <FileSpreadsheet className="h-5 w-5" />}
+                        </div>
+                        <div className="text-xs font-semibold text-foreground">
+                          {sourceDragging ? "Drop here" : "Drag & drop internal payin Excel"}
+                        </div>
+                        <div className="mt-1 text-[10px] text-muted-foreground">
+                          Detects: Row Labels / Name + Sum of Amount
+                        </div>
                       </div>
+                    ) : (
+                      <div className="rounded-lg border border-blue-200 bg-blue-50/70 px-3.5 py-3 text-[11px] text-blue-900">
+                        <div className="flex items-center gap-1.5 font-semibold">
+                          <FileSpreadsheet className="h-3.5 w-3.5" /> {sourceFile}
+                        </div>
+                        <div className="mt-1.5">
+                          {sourceRows.length} companies · {sourceByMerchant.size} merchants · Total{" "}
+                          <strong>{formatINR(sourceRows.reduce((s, r) => s + r.amount, 0))}</strong>
+                        </div>
+                      </div>
+                    )}
+                    {sourceError && (
+                      <div className="mt-2 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[11px] font-semibold text-destructive">
+                        <AlertCircle className="mt-px h-3.5 w-3.5 flex-shrink-0" />
+                        {sourceError}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bank settlement */}
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        2. Bank Settlement
+                      </div>
+                      {bankRows.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={clearBank}
+                          className="text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+                        >
+                          Clear ×
+                        </button>
+                      )}
                     </div>
-                  )}
-                  {bankError && (
-                    <div style={{ marginTop: 8, padding: "8px 12px", borderRadius: 6, background: "#fef2f2", border: "1px solid #fca5a5", color: "#991b1b", fontSize: 11, fontWeight: 600 }}>
-                      {bankError}
-                    </div>
-                  )}
+                    {bankRows.length === 0 ? (
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); setBankDragging(true); }}
+                        onDragLeave={() => setBankDragging(false)}
+                        onDrop={handleBankDrop}
+                        onClick={() => document.getElementById("bank-file-input")?.click()}
+                        className={cn(
+                          "cursor-pointer rounded-xl border-2 border-dashed px-4 py-7 text-center transition-all",
+                          bankDragging
+                            ? "border-emerald-400 bg-emerald-50/70"
+                            : "border-border bg-muted/30 hover:border-primary/40 hover:bg-muted/50"
+                        )}
+                      >
+                        <input id="bank-file-input" type="file" accept=".csv,.xlsx,.xls" onChange={handleBankInput} className="hidden" />
+                        <div className={cn("mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl", bankDragging ? "bg-emerald-100 text-emerald-700" : "bg-emerald-50 text-emerald-700")}>
+                          {bankDragging ? <Upload className="h-5 w-5" /> : <FileSpreadsheet className="h-5 w-5" />}
+                        </div>
+                        <div className="text-xs font-semibold text-foreground">
+                          {bankDragging ? "Drop here" : "Drag & drop bank settlement Excel"}
+                        </div>
+                        <div className="mt-1 text-[10px] text-muted-foreground">
+                          Detects: MID · Name · Amount · Fee · GST · Settle · Chargeback
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 px-3.5 py-3 text-[11px] text-emerald-900">
+                        <div className="flex items-center gap-1.5 font-semibold">
+                          <FileSpreadsheet className="h-3.5 w-3.5" /> {bankFile}
+                        </div>
+                        <div className="mt-1.5">
+                          {bankRows.length} companies · {bankByMerchant.length} merchants
+                          {bankTotals.unmatched > 0 && (
+                            <span className="ml-1.5 text-red-700">· {bankTotals.unmatched} unmatched</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {bankError && (
+                      <div className="mt-2 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-[11px] font-semibold text-destructive">
+                        <AlertCircle className="mt-px h-3.5 w-3.5 flex-shrink-0" />
+                        {bankError}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {(bankRows.length > 0 || sourceRows.length > 0) && (
-                <>
-
-                  {/* Aggregated summary table */}
-                  <div style={{ marginTop: 14, overflowX: "auto", border: `1px solid ${C.border}`, borderRadius: 10 }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                      <thead>
-                        <tr style={{ borderBottom: `2px solid ${C.border}`, background: "#f8fafc" }}>
+                {(bankRows.length > 0 || sourceRows.length > 0) && (
+                  <div className="overflow-x-auto rounded-lg border border-border">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted/40">
+                        <tr>
                           {(() => {
                             const headers = ["Merchant"];
                             if (sourceRows.length > 0) headers.push("Source Payin");
@@ -3161,7 +3462,13 @@ export default function App() {
                             if (sourceRows.length > 0 && bankRows.length > 0) headers.push("Payin Diff");
                             if (bankRows.length > 0) headers.push("Bank Fee", "Bank GST", "Bank Settle", "Chargeback", "Net Settle", "Our Settle", "Difference");
                             return headers.map((h, i) => (
-                              <th key={i} style={{ padding: "10px 10px", textAlign: i <= 0 ? "left" : "right", fontSize: 9, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: ".5px", whiteSpace: "nowrap" }}>
+                              <th
+                                key={i}
+                                className={cn(
+                                  "whitespace-nowrap px-3 py-2.5 text-[9.5px] font-semibold uppercase tracking-wider text-muted-foreground",
+                                  i <= 0 ? "text-left" : "text-right"
+                                )}
+                              >
                                 {h}
                               </th>
                             ));
@@ -3170,71 +3477,75 @@ export default function App() {
                       </thead>
                       <tbody>
                         {combinedByMerchant.map((g) => (
-                          <tr key={g.merchant} style={{ borderBottom: `1px solid ${C.border}` }} onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")} onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}>
-                            <td style={{ padding: "10px 10px", fontWeight: 700, color: g.merchant === "Unmatched" ? C.red : C.accent }}>
+                          <tr key={g.merchant} className="border-t border-border/60 transition-colors hover:bg-muted/30">
+                            <td className={cn("px-3 py-2.5 font-bold", g.merchant === "Unmatched" ? "text-red-700" : "text-primary")}>
                               {g.merchant}
                               {g.unmatched > 0 && g.merchant !== "Unmatched" && (
-                                <span style={{ marginLeft: 6, padding: "1px 6px", background: "#fef3c7", color: "#92400e", borderRadius: 4, fontSize: 9, fontWeight: 700 }} title="unmatched bank rows">
+                                <Badge
+                                  variant="secondary"
+                                  className="ml-2 bg-amber-100 px-1.5 py-0 text-[9px] font-bold text-amber-800 hover:bg-amber-100"
+                                  title="unmatched bank rows"
+                                >
                                   {g.unmatched} ub
-                                </span>
+                                </Badge>
                               )}
                             </td>
                             {sourceRows.length > 0 && (
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600, color: "#7c3aed" }}>
+                              <td className="px-3 py-2.5 text-right font-mono font-semibold tabular-nums text-violet-700">
                                 {g.sourcePayin > 0 ? formatINR(g.sourcePayin) : "—"}
                               </td>
                             )}
                             {bankRows.length > 0 && (
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 600 }}>
+                              <td className="px-3 py-2.5 text-right font-mono font-semibold tabular-nums text-foreground">
                                 {g.amount > 0 ? formatINR(g.amount) : "—"}
                               </td>
                             )}
                             {sourceRows.length > 0 && bankRows.length > 0 && (
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: Math.abs(g.payinDiff) <= 1 ? C.green : C.red }}>
+                              <td className={cn("px-3 py-2.5 text-right font-mono font-bold tabular-nums", Math.abs(g.payinDiff) <= 1 ? "text-emerald-700" : "text-red-700")}>
                                 {g.payinDiff > 0 ? "+" : ""}{formatINR(g.payinDiff)}
                               </td>
                             )}
                             {bankRows.length > 0 && (
                               <>
-                                <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", color: C.orange }}>{formatINR(g.fee)}</td>
-                                <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", color: C.red }}>{formatINR(g.gst)}</td>
-                                <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.blue }}>{formatINR(g.settle)}</td>
-                                <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", color: g.chargeback > 0 ? "#dc2626" : C.muted }}>
+                                <td className="px-3 py-2.5 text-right font-mono tabular-nums text-amber-600">{formatINR(g.fee)}</td>
+                                <td className="px-3 py-2.5 text-right font-mono tabular-nums text-rose-600">{formatINR(g.gst)}</td>
+                                <td className="px-3 py-2.5 text-right font-mono font-bold tabular-nums text-blue-700">{formatINR(g.settle)}</td>
+                                <td className={cn("px-3 py-2.5 text-right font-mono tabular-nums", g.chargeback > 0 ? "text-red-700" : "text-muted-foreground")}>
                                   {g.chargeback > 0 ? "−" + formatINR(g.chargeback) : "—"}
                                 </td>
-                                <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: "#1e40af" }}>{formatINR(g.netSettle)}</td>
-                                <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.green }}>{formatINR(g.ourNet)}</td>
-                                <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: Math.abs(g.diff) <= 1 ? C.green : C.red }}>
+                                <td className="px-3 py-2.5 text-right font-mono font-bold tabular-nums text-blue-900">{formatINR(g.netSettle)}</td>
+                                <td className="px-3 py-2.5 text-right font-mono font-bold tabular-nums text-emerald-700">{formatINR(g.ourNet)}</td>
+                                <td className={cn("px-3 py-2.5 text-right font-mono font-bold tabular-nums", Math.abs(g.diff) <= 1 ? "text-emerald-700" : "text-red-700")}>
                                   {g.diff > 0 ? "+" : ""}{formatINR(g.diff)}
                                 </td>
                               </>
                             )}
                           </tr>
                         ))}
-                        <tr style={{ background: "#f1f5f9", borderTop: `2px solid ${C.border}` }}>
-                          <td style={{ padding: "10px 10px", fontWeight: 700, color: C.text }}>TOTAL</td>
+                        <tr className="border-t-2 border-border bg-muted/60">
+                          <td className="px-3 py-2.5 font-bold text-foreground">TOTAL</td>
                           {sourceRows.length > 0 && (
-                            <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: "#7c3aed" }}>{formatINR(combinedTotals.sourcePayin)}</td>
+                            <td className="px-3 py-2.5 text-right font-mono font-bold tabular-nums text-violet-700">{formatINR(combinedTotals.sourcePayin)}</td>
                           )}
                           {bankRows.length > 0 && (
-                            <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{formatINR(combinedTotals.bankPayin)}</td>
+                            <td className="px-3 py-2.5 text-right font-mono font-bold tabular-nums text-foreground">{formatINR(combinedTotals.bankPayin)}</td>
                           )}
                           {sourceRows.length > 0 && bankRows.length > 0 && (
-                            <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: Math.abs(combinedTotals.payinDiff) <= 1 ? C.green : C.red }}>
+                            <td className={cn("px-3 py-2.5 text-right font-mono font-bold tabular-nums", Math.abs(combinedTotals.payinDiff) <= 1 ? "text-emerald-700" : "text-red-700")}>
                               {combinedTotals.payinDiff > 0 ? "+" : ""}{formatINR(combinedTotals.payinDiff)}
                             </td>
                           )}
                           {bankRows.length > 0 && (
                             <>
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.orange }}>{formatINR(bankTotals.fee)}</td>
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.red }}>{formatINR(bankTotals.gst)}</td>
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.blue }}>{formatINR(bankTotals.settle)}</td>
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: bankTotals.chargeback > 0 ? "#dc2626" : C.muted }}>
+                              <td className="px-3 py-2.5 text-right font-mono font-bold tabular-nums text-amber-600">{formatINR(bankTotals.fee)}</td>
+                              <td className="px-3 py-2.5 text-right font-mono font-bold tabular-nums text-rose-600">{formatINR(bankTotals.gst)}</td>
+                              <td className="px-3 py-2.5 text-right font-mono font-bold tabular-nums text-blue-700">{formatINR(bankTotals.settle)}</td>
+                              <td className={cn("px-3 py-2.5 text-right font-mono font-bold tabular-nums", bankTotals.chargeback > 0 ? "text-red-700" : "text-muted-foreground")}>
                                 {bankTotals.chargeback > 0 ? "−" + formatINR(bankTotals.chargeback) : "—"}
                               </td>
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: "#1e40af" }}>{formatINR(bankTotals.netSettle)}</td>
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.green }}>{formatINR(bankTotals.ourNet)}</td>
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: Math.abs(bankTotals.diff) <= 1 ? C.green : C.red }}>
+                              <td className="px-3 py-2.5 text-right font-mono font-bold tabular-nums text-blue-900">{formatINR(bankTotals.netSettle)}</td>
+                              <td className="px-3 py-2.5 text-right font-mono font-bold tabular-nums text-emerald-700">{formatINR(bankTotals.ourNet)}</td>
+                              <td className={cn("px-3 py-2.5 text-right font-mono font-bold tabular-nums", Math.abs(bankTotals.diff) <= 1 ? "text-emerald-700" : "text-red-700")}>
                                 {bankTotals.diff > 0 ? "+" : ""}{formatINR(bankTotals.diff)}
                               </td>
                             </>
@@ -3243,421 +3554,251 @@ export default function App() {
                       </tbody>
                     </table>
                   </div>
-                </>
-              )}
-            </div>
+                )}
+              </CardContent>
+            </Card>
 
-            <div
-              style={{
-                background: C.card,
-                borderRadius: 14,
-                border: `1px solid ${C.border}`,
-                padding: 24,
-                marginBottom: 20,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 15,
-                  fontWeight: 700,
-                  color: C.text,
-                  marginBottom: 16,
-                }}
-              >
-                Verify Transaction
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr 1fr",
-                  gap: 14,
-                  marginBottom: 14,
-                }}
-              >
-                <div>
-                  <label style={labS}>Merchant</label>
-                  <select
-                    value={rMerchant}
-                    onChange={(e) => {
-                      setRM(e.target.value);
-                      setRC("");
-                    }}
-                    style={selS}
-                  >
-                    <option value="">&mdash; Select &mdash;</option>
-                    {ALL_MERCHANTS.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
+            <Card className="border-border/70 shadow-xs">
+              <CardHeader className="border-b border-border/60 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700">
+                    <CheckCircle2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-[15px] font-semibold tracking-tight text-foreground">
+                      Verify Transaction
+                    </CardTitle>
+                    <CardDescription className="text-xs text-muted-foreground">
+                      Cross-check a single transaction against bank settlement
+                    </CardDescription>
+                  </div>
                 </div>
-                <div>
-                  <label style={labS}>Company</label>
-                  <select
-                    value={rCompany}
-                    onChange={(e) => setRC(e.target.value)}
-                    style={selS}
-                  >
-                    <option value="">&mdash; Select &mdash;</option>
-                    {rCompsFor.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={labS}>Transaction ID</label>
-                  <input
-                    value={rTxnId}
-                    onChange={(e) => setRTxn(e.target.value)}
-                    placeholder="TXN-001"
-                    style={inpS}
-                  />
-                </div>
-              </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr",
-                  gap: 14,
-                  marginBottom: 14,
-                }}
-              >
-                <div>
-                  <label style={labS}>Payin (₹)</label>
-                  <input
-                    type="number"
-                    value={rPayin}
-                    onChange={(e) => setRPay(e.target.value)}
-                    placeholder="10000"
-                    style={{
-                      ...inpS,
-                      fontFamily: "'JetBrains Mono',monospace",
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={labS}>Amount to be Settled in Bank (₹)</label>
-                  <input
-                    type="number"
-                    value={rClaimed}
-                    onChange={(e) => setRClaimed(e.target.value)}
-                    placeholder="9950"
-                    style={{
-                      ...inpS,
-                      fontFamily: "'JetBrains Mono',monospace",
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={labS}>UTR Number</label>
-                  <input
-                    value={rUTR}
-                    onChange={(e) => setRUTR(e.target.value)}
-                    placeholder="UTR123456"
-                    style={inpS}
-                  />
-                </div>
-                <div>
-                  <label style={labS}>Date</label>
-                  <input
-                    type="date"
-                    value={rDate}
-                    onChange={(e) => setRDate(e.target.value)}
-                    style={inpS}
-                  />
-                </div>
-                <div>
-                  <label style={labS}>Cycle</label>
-                  <select
-                    value={rCycle}
-                    onChange={(e) => setRCycle(e.target.value)}
-                    style={selS}
-                  >
-                    <option value="1">Cycle 1</option>
-                    <option value="2">Cycle 2</option>
-                  </select>
-                </div>
-              </div>
-
-              {(parseFloat(rPayin) || 0) > 0 &&
-                (() => {
-                  const rp = parseFloat(rPayin);
-                  const rc2 = parseFloat(rClaimed) || 0;
-                  const ch2 = (rp * CHARGE_RATE) / 100;
-                  const gs2 = (ch2 * GST_RATE) / 100;
-                  const os = rp - ch2 - gs2;
-                  const df = os - rc2;
-                  return (
-                    <div
-                      style={{
-                        background: C.bg,
-                        borderRadius: 10,
-                        padding: "14px 18px",
-                        marginBottom: 14,
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 20,
-                        alignItems: "center",
-                      }}
+              </CardHeader>
+              <CardContent className="space-y-4 pt-5">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Merchant</Label>
+                    <Select
+                      value={rMerchant || undefined}
+                      onValueChange={(v) => { setRM(v); setRC(""); }}
                     >
-                      <div>
-                        <div
-                          style={{
-                            fontSize: 9,
-                            color: C.muted,
-                            textTransform: "uppercase",
-                            fontWeight: 600,
-                          }}
-                        >
-                          Our Settlement
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 16,
-                            fontFamily: "'JetBrains Mono',monospace",
-                            fontWeight: 700,
-                            color: C.green,
-                          }}
-                        >
-                          {formatINR(os)}
-                        </div>
-                      </div>
-                      {rc2 > 0 && (
-                        <>
-                          <div>
-                            <div
-                              style={{
-                                fontSize: 9,
-                                color: C.muted,
-                                textTransform: "uppercase",
-                                fontWeight: 600,
-                              }}
-                            >
-                              Bank Settlement
-                            </div>
-                            <div
-                              style={{
-                                fontSize: 16,
-                                fontFamily: "'JetBrains Mono',monospace",
-                                fontWeight: 700,
-                                color: C.blue,
-                              }}
-                            >
-                              {formatINR(rc2)}
-                            </div>
-                          </div>
-                          <div>
-                            <div
-                              style={{
-                                fontSize: 9,
-                                color: C.muted,
-                                textTransform: "uppercase",
-                                fontWeight: 600,
-                              }}
-                            >
-                              Difference
-                            </div>
-                            <div
-                              style={{
-                                fontSize: 16,
-                                fontFamily: "'JetBrains Mono',monospace",
-                                fontWeight: 700,
-                                color:
-                                  Math.abs(df) <= 1 ? C.green : C.red,
-                              }}
-                            >
-                              {df > 0 ? "+" : ""}
-                              {formatINR(df)}
-                            </div>
-                          </div>
-                          <div
-                            style={{
-                              padding: "6px 14px",
-                              borderRadius: 8,
-                              fontSize: 12,
-                              fontWeight: 700,
-                              ...(Math.abs(df) <= 1
-                                ? { background: "#d1fae5", color: "#065f46" }
-                                : { background: "#fee2e2", color: "#991b1b" }),
-                            }}
-                          >
-                            {Math.abs(df) <= 1 ? "MATCH" : "MISMATCH"}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  );
-                })()}
+                      <SelectTrigger className="h-10 w-full">
+                        <SelectValue placeholder="— Select —" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ALL_MERCHANTS.map((m) => (
+                          <SelectItem key={m} value={m}>{m}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Company</Label>
+                    <Select
+                      value={rCompany || undefined}
+                      onValueChange={setRC}
+                      disabled={!rMerchant}
+                    >
+                      <SelectTrigger className="h-10 w-full">
+                        <SelectValue placeholder={rMerchant ? "— Select —" : "Select merchant first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {rCompsFor.map((c) => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Transaction ID</Label>
+                    <Input
+                      value={rTxnId}
+                      onChange={(e) => setRTxn(e.target.value)}
+                      placeholder="TXN-001"
+                      className="h-10 font-mono"
+                    />
+                  </div>
+                </div>
 
-              <button
-                onClick={addRecon}
-                disabled={
-                  !(
-                    parseFloat(rPayin) > 0 &&
-                    rMerchant &&
-                    rCompany &&
-                    rTxnId
-                  )
-                }
-                style={{
-                  background:
-                    parseFloat(rPayin) > 0 &&
-                    rMerchant &&
-                    rCompany &&
-                    rTxnId
-                      ? C.accent
-                      : "#e2e8f0",
-                  color:
-                    parseFloat(rPayin) > 0 &&
-                    rMerchant &&
-                    rCompany &&
-                    rTxnId
-                      ? "#fff"
-                      : "#94a3b8",
-                  border: "none",
-                  borderRadius: 10,
-                  padding: "12px 28px",
-                  fontSize: 14,
-                  fontWeight: 700,
-                  cursor:
-                    parseFloat(rPayin) > 0 &&
-                    rMerchant &&
-                    rCompany &&
-                    rTxnId
-                      ? "pointer"
-                      : "not-allowed",
-                }}
-              >
-                + Add to Reconciliation
-              </button>
-            </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Payin (₹)</Label>
+                    <div className="relative">
+                      <IndianRupee className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                      <Input
+                        type="number"
+                        value={rPayin}
+                        onChange={(e) => setRPay(e.target.value)}
+                        placeholder="10000"
+                        className="h-10 pl-8 font-mono font-semibold tabular-nums"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Bank Settle (₹)</Label>
+                    <div className="relative">
+                      <IndianRupee className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                      <Input
+                        type="number"
+                        value={rClaimed}
+                        onChange={(e) => setRClaimed(e.target.value)}
+                        placeholder="9950"
+                        className="h-10 pl-8 font-mono font-semibold tabular-nums"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">UTR Number</Label>
+                    <Input
+                      value={rUTR}
+                      onChange={(e) => setRUTR(e.target.value)}
+                      placeholder="UTR123456"
+                      className="h-10 font-mono"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Date</Label>
+                    <div className="relative">
+                      <CalendarIcon className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                      <Input
+                        type="date"
+                        value={rDate}
+                        onChange={(e) => setRDate(e.target.value)}
+                        className="h-10 pl-8"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Cycle</Label>
+                    <Select value={rCycle} onValueChange={setRCycle}>
+                      <SelectTrigger className="h-10 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">Cycle 1</SelectItem>
+                        <SelectItem value="2">Cycle 2</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {(parseFloat(rPayin) || 0) > 0 &&
+                  (() => {
+                    const rp = parseFloat(rPayin);
+                    const rc2 = parseFloat(rClaimed) || 0;
+                    const ch2 = (rp * CHARGE_RATE) / 100;
+                    const gs2 = (ch2 * GST_RATE) / 100;
+                    const os = rp - ch2 - gs2;
+                    const df = os - rc2;
+                    const isMatch = Math.abs(df) <= 1;
+                    return (
+                      <div className="flex flex-wrap items-center gap-5 rounded-lg border border-border bg-muted/40 px-5 py-4">
+                        <div>
+                          <div className="text-[9.5px] font-semibold uppercase tracking-wider text-muted-foreground">Our Settlement</div>
+                          <div className="font-mono text-base font-bold tabular-nums text-emerald-700">{formatINR(os)}</div>
+                        </div>
+                        {rc2 > 0 && (
+                          <>
+                            <Separator orientation="vertical" className="h-9" />
+                            <div>
+                              <div className="text-[9.5px] font-semibold uppercase tracking-wider text-muted-foreground">Bank Settlement</div>
+                              <div className="font-mono text-base font-bold tabular-nums text-blue-700">{formatINR(rc2)}</div>
+                            </div>
+                            <Separator orientation="vertical" className="h-9" />
+                            <div>
+                              <div className="text-[9.5px] font-semibold uppercase tracking-wider text-muted-foreground">Difference</div>
+                              <div className={cn("font-mono text-base font-bold tabular-nums", isMatch ? "text-emerald-700" : "text-red-700")}>
+                                {df > 0 ? "+" : ""}{formatINR(df)}
+                              </div>
+                            </div>
+                            <Badge
+                              className={cn(
+                                "ml-auto font-bold tracking-wide",
+                                isMatch
+                                  ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
+                                  : "bg-red-100 text-red-800 hover:bg-red-100"
+                              )}
+                            >
+                              {isMatch ? <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> : <AlertCircle className="mr-1 h-3.5 w-3.5" />}
+                              {isMatch ? "MATCH" : "MISMATCH"}
+                            </Badge>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                <Button
+                  size="lg"
+                  onClick={addRecon}
+                  disabled={!(parseFloat(rPayin) > 0 && rMerchant && rCompany && rTxnId)}
+                  className="h-11 px-7"
+                >
+                  <Plus className="mr-1 h-4 w-4" />
+                  Add to Reconciliation
+                </Button>
+              </CardContent>
+            </Card>
 
             {recon.length > 0 && (
-              <div
-                style={{
-                  background: C.card,
-                  borderRadius: 14,
-                  border: `1px solid ${C.border}`,
-                  padding: "12px 20px",
-                  marginBottom: 16,
-                  display: "flex",
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                  gap: 10,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 4,
-                    background: C.bg,
-                    borderRadius: 8,
-                    padding: 3,
-                  }}
-                >
-                  {[
-                    { k: "all", l: "All" },
-                    { k: "Matched", l: "Matched" },
-                    { k: "Mismatch", l: "Mismatch" },
-                    { k: "Pending", l: "Pending" },
-                    { k: "Resolved", l: "Resolved" },
-                  ].map((t) => (
-                    <button
-                      key={t.k}
-                      onClick={() => setRFilter(t.k)}
-                      style={{
-                        background:
-                          rFilter === t.k
-                            ? t.k === "Mismatch"
-                              ? C.red
-                              : t.k === "Matched"
-                                ? C.green
-                                : t.k === "Resolved"
-                                  ? C.blue
-                                  : C.accent
-                            : "transparent",
-                        color: rFilter === t.k ? "#fff" : C.muted,
-                        border: "none",
-                        borderRadius: 6,
-                        padding: "6px 14px",
-                        fontSize: 11,
-                        fontWeight: 600,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {t.l}
-                    </button>
-                  ))}
-                </div>
-                <select
-                  value={rFM}
-                  onChange={(e) => setRFM(e.target.value)}
-                  style={filtS}
-                >
-                  <option value="__all__">All Merchants</option>
-                  {[...new Set(recon.map((r) => r.merchant))]
-                    .sort()
-                    .map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                </select>
-                <button
-                  onClick={() => {
-                    setRecon([]);
-                    setRReason({});
-                    setRNotes({});
-                    setRResolved({});
-                  }}
-                  style={{
-                    ...filtS,
-                    border: "1px solid #fca5a5",
-                    background: "#fef2f2",
-                    color: C.red,
-                    marginLeft: "auto",
-                  }}
-                >
-                  Clear All
-                </button>
-              </div>
+              <Card className="border-border/70 shadow-xs">
+                <CardContent className="flex flex-wrap items-center gap-2.5 px-5 py-3">
+                  <div className="-mx-1 max-w-full overflow-x-auto px-1">
+                    <Tabs value={rFilter} onValueChange={setRFilter}>
+                      <TabsList>
+                        <TabsTrigger value="all">All</TabsTrigger>
+                        <TabsTrigger value="Matched">Matched</TabsTrigger>
+                        <TabsTrigger value="Mismatch">Mismatch</TabsTrigger>
+                        <TabsTrigger value="Pending">Pending</TabsTrigger>
+                        <TabsTrigger value="Resolved">Resolved</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+                  <Select value={rFM} onValueChange={setRFM}>
+                    <SelectTrigger className="h-9 w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">All Merchants</SelectItem>
+                      {[...new Set(recon.map((r) => r.merchant))]
+                        .sort()
+                        .map((m) => (
+                          <SelectItem key={m} value={m}>{m}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setRecon([]);
+                      setRReason({});
+                      setRNotes({});
+                      setRResolved({});
+                    }}
+                    className="ml-auto border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
+                  >
+                    <Trash2 className="mr-1 h-3.5 w-3.5" />
+                    Clear all
+                  </Button>
+                </CardContent>
+              </Card>
             )}
 
             {reconFiltered.length > 0 && (
-              <div
-                style={{
-                  background: C.card,
-                  borderRadius: 14,
-                  border: `1px solid ${C.border}`,
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    padding: "14px 20px",
-                    borderBottom: `1px solid ${C.border}`,
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: C.text,
-                  }}
-                >
-                  Reconciliation Entries ({reconFiltered.length})
+              <Card className="overflow-hidden border-border/70 shadow-xs">
+                <div className="flex items-center justify-between border-b border-border/70 px-5 py-3.5">
+                  <div>
+                    <div className="text-sm font-semibold tracking-tight text-foreground">
+                      Reconciliation Entries
+                    </div>
+                    <div className="text-xs text-muted-foreground">{reconFiltered.length} rows</div>
+                  </div>
                 </div>
-                <div style={{ overflowX: "auto" }}>
-                  <table
-                    style={{
-                      width: "100%",
-                      borderCollapse: "collapse",
-                      fontSize: 12,
-                    }}
-                  >
-                    <thead>
-                      <tr
-                        style={{ borderBottom: `2px solid ${C.border}` }}
-                      >
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted/40">
+                      <tr>
                         {[
                           "Txn ID",
                           "Merchant",
@@ -3672,16 +3813,10 @@ export default function App() {
                         ].map((h, i) => (
                           <th
                             key={i}
-                            style={{
-                              padding: "11px 12px",
-                              textAlign: i <= 2 ? "left" : "right",
-                              fontSize: 9,
-                              fontWeight: 700,
-                              color: C.muted,
-                              textTransform: "uppercase",
-                              letterSpacing: ".5px",
-                              whiteSpace: "nowrap",
-                            }}
+                            className={cn(
+                              "whitespace-nowrap px-3 py-2.5 text-[9.5px] font-semibold uppercase tracking-wider text-muted-foreground",
+                              i <= 2 ? "text-left" : "text-right"
+                            )}
                           >
                             {h}
                           </th>
@@ -3690,210 +3825,79 @@ export default function App() {
                     </thead>
                     <tbody>
                       {reconFiltered.map((r) => {
-                        const badge = statusBadge(
-                          r.status,
-                          rResolved[r.id]
-                        );
+                        const badge = statusBadge(r.status, rResolved[r.id]);
                         return (
                           <tr
                             key={r.id}
-                            style={{
-                              borderBottom: `1px solid ${C.border}`,
-                            }}
-                            onMouseEnter={(e) =>
-                              (e.currentTarget.style.background =
-                                "#f8fafc")
-                            }
-                            onMouseLeave={(e) =>
-                              (e.currentTarget.style.background = "#fff")
-                            }
+                            className="border-t border-border/60 transition-colors hover:bg-muted/30"
                           >
+                            <td className="px-3 py-2.5 font-mono text-xs font-semibold text-foreground">{r.txnId}</td>
+                            <td className="px-3 py-2.5 font-semibold text-primary">{r.merchant}</td>
                             <td
-                              style={{
-                                padding: "10px 12px",
-                                fontFamily: "'JetBrains Mono',monospace",
-                                fontWeight: 600,
-                                color: C.text,
-                                fontSize: 12,
-                              }}
-                            >
-                              {r.txnId}
-                            </td>
-                            <td
-                              style={{
-                                padding: "10px 12px",
-                                fontWeight: 600,
-                                color: C.accent,
-                              }}
-                            >
-                              {r.merchant}
-                            </td>
-                            <td
-                              style={{
-                                padding: "10px 12px",
-                                color: C.text,
-                                maxWidth: 160,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
-                              }}
+                              className="max-w-[160px] overflow-hidden text-ellipsis whitespace-nowrap px-3 py-2.5 text-foreground"
                               title={r.company}
                             >
                               {r.company}
                             </td>
-                            <td
-                              style={{
-                                padding: "10px 12px",
-                                textAlign: "right",
-                                fontFamily: "'JetBrains Mono',monospace",
-                              }}
-                            >
-                              {formatINR(r.payin)}
+                            <td className="px-3 py-2.5 text-right font-mono tabular-nums text-foreground">{formatINR(r.payin)}</td>
+                            <td className="px-3 py-2.5 text-right font-mono font-semibold tabular-nums text-emerald-700">{formatINR(r.ourSettle)}</td>
+                            <td className={cn("px-3 py-2.5 text-right font-mono font-semibold tabular-nums", r.claimed > 0 ? "text-blue-700" : "text-muted-foreground")}>
+                              {r.claimed > 0 ? formatINR(r.claimed) : "\u2014"}
                             </td>
-                            <td
-                              style={{
-                                padding: "10px 12px",
-                                textAlign: "right",
-                                fontFamily: "'JetBrains Mono',monospace",
-                                fontWeight: 600,
-                                color: C.green,
-                              }}
-                            >
-                              {formatINR(r.ourSettle)}
-                            </td>
-                            <td
-                              style={{
-                                padding: "10px 12px",
-                                textAlign: "right",
-                                fontFamily: "'JetBrains Mono',monospace",
-                                fontWeight: 600,
-                                color:
-                                  r.claimed > 0 ? C.blue : C.muted,
-                              }}
-                            >
-                              {r.claimed > 0
-                                ? formatINR(r.claimed)
-                                : "\u2014"}
-                            </td>
-                            <td
-                              style={{
-                                padding: "10px 12px",
-                                textAlign: "right",
-                                fontFamily: "'JetBrains Mono',monospace",
-                                fontWeight: 700,
-                                color:
-                                  r.status === "Mismatch"
-                                    ? C.red
-                                    : r.status === "Matched"
-                                      ? C.green
-                                      : C.orange,
-                              }}
-                            >
+                            <td className={cn(
+                              "px-3 py-2.5 text-right font-mono font-bold tabular-nums",
+                              r.status === "Mismatch" ? "text-red-700" : r.status === "Matched" ? "text-emerald-700" : "text-amber-600"
+                            )}>
                               {r.status === "Mismatch"
-                                ? (r.diff > 0 ? "+" : "") +
-                                  formatINR(r.diff)
+                                ? (r.diff > 0 ? "+" : "") + formatINR(r.diff)
                                 : r.status === "Matched"
                                   ? "\u20B90.00"
                                   : "\u2014"}
                             </td>
-                            <td
-                              style={{
-                                padding: "10px 12px",
-                                textAlign: "right",
-                              }}
-                            >
+                            <td className="px-3 py-2.5 text-right">
                               <span
-                                style={{
-                                  padding: "3px 10px",
-                                  borderRadius: 6,
-                                  fontSize: 10,
-                                  fontWeight: 700,
-                                  background: badge.bg,
-                                  color: badge.color,
-                                }}
+                                className="inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold"
+                                style={{ background: badge.bg, color: badge.color }}
                               >
                                 {badge.label}
                               </span>
                             </td>
-                            <td
-                              style={{
-                                padding: "10px 12px",
-                                textAlign: "right",
-                              }}
-                            >
-                              {r.status === "Mismatch" &&
-                                !rResolved[r.id] && (
-                                  <select
-                                    value={rReason[r.id] || ""}
-                                    onChange={(e) =>
-                                      setRReason((p) => ({
-                                        ...p,
-                                        [r.id]: e.target.value,
-                                      }))
-                                    }
-                                    style={{
-                                      padding: "4px 8px",
-                                      borderRadius: 6,
-                                      border: `1px solid ${C.border}`,
-                                      fontSize: 11,
-                                      color: C.text,
-                                      cursor: "pointer",
-                                      maxWidth: 120,
-                                    }}
-                                  >
-                                    <option value="">Reason...</option>
+                            <td className="px-3 py-2.5 text-right">
+                              {r.status === "Mismatch" && !rResolved[r.id] && (
+                                <Select
+                                  value={rReason[r.id] || undefined}
+                                  onValueChange={(v) => setRReason((p) => ({ ...p, [r.id]: v }))}
+                                >
+                                  <SelectTrigger className="h-7 w-[130px] text-[11px]">
+                                    <SelectValue placeholder="Reason..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
                                     {REASONS.map((re) => (
-                                      <option key={re} value={re}>
-                                        {re}
-                                      </option>
+                                      <SelectItem key={re} value={re}>{re}</SelectItem>
                                     ))}
-                                  </select>
-                                )}
+                                  </SelectContent>
+                                </Select>
+                              )}
                             </td>
-                            <td
-                              style={{
-                                padding: "10px 8px",
-                                textAlign: "center",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {!rResolved[r.id] &&
-                                r.status === "Mismatch" &&
-                                rReason[r.id] && (
-                                  <button
-                                    onClick={() =>
-                                      setRResolved((p) => ({
-                                        ...p,
-                                        [r.id]: true,
-                                      }))
-                                    }
-                                    style={{
-                                      background: "#dbeafe",
-                                      color: "#1e40af",
-                                      border: "none",
-                                      borderRadius: 6,
-                                      padding: "4px 10px",
-                                      fontSize: 10,
-                                      fontWeight: 700,
-                                      cursor: "pointer",
-                                      marginRight: 4,
-                                    }}
-                                  >
-                                    Resolve
-                                  </button>
-                                )}
-                              <button
+                            <td className="whitespace-nowrap px-2 py-2.5 text-center">
+                              {!rResolved[r.id] && r.status === "Mismatch" && rReason[r.id] && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setRResolved((p) => ({ ...p, [r.id]: true }))}
+                                  className="mr-1 h-7 border-blue-300 px-2.5 text-[10px] font-bold text-blue-700 hover:bg-blue-50"
+                                >
+                                  Resolve
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 onClick={() => rmRecon(r.id)}
-                                style={{
-                                  background: "none",
-                                  border: "none",
-                                  color: "#cbd5e1",
-                                  cursor: "pointer",
-                                  fontSize: 14,
-                                }}
+                                className="h-7 w-7 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
                               >
-                                &times;
-                              </button>
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
                             </td>
                           </tr>
                         );
@@ -3901,101 +3905,60 @@ export default function App() {
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </Card>
             )}
 
             {recon.length === 0 && (
-              <div
-                style={{
-                  background: C.card,
-                  borderRadius: 14,
-                  border: `1px solid ${C.border}`,
-                  padding: "48px 24px",
-                  textAlign: "center",
-                }}
-              >
-                <div style={{ fontSize: 40, marginBottom: 12 }}>
-                  {"\uD83D\uDD0D"}
-                </div>
-                <div
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 600,
-                    color: C.text,
-                    marginBottom: 6,
-                  }}
-                >
-                  No reconciliation entries
-                </div>
-                <div style={{ fontSize: 13, color: C.muted }}>
-                  Add transactions above to verify settlement amounts
-                  against merchant claims
-                </div>
-              </div>
+              <Card className="border-dashed border-border/80 bg-background/40 shadow-none">
+                <CardContent className="flex flex-col items-center justify-center px-6 py-14 text-center">
+                  <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <Search className="h-6 w-6" />
+                  </div>
+                  <div className="text-base font-semibold text-foreground">No reconciliation entries</div>
+                  <div className="mt-1 max-w-sm text-sm text-muted-foreground">
+                    Add transactions above to verify settlement amounts against merchant claims.
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </div>
         )}
 
         {/* ========== MERCHANTS ========== */}
         {page === "merchants" && (
-          <div className="fade-up">
-            {/* Top bar: search + summary */}
-            <div
-              style={{
-                background: C.card,
-                borderRadius: 14,
-                border: `1px solid ${C.border}`,
-                padding: "14px 20px",
-                marginBottom: 16,
-                display: "flex",
-                flexWrap: "wrap",
-                alignItems: "center",
-                gap: 12,
-              }}
-            >
-              <input
-                value={mSearch}
-                onChange={(e) => setMSearch(e.target.value)}
-                placeholder="Search by company, MID, or GST number..."
-                style={{
-                  flex: 1,
-                  minWidth: 240,
-                  padding: "10px 14px",
-                  borderRadius: 10,
-                  border: `1.5px solid ${C.border}`,
-                  fontSize: 13,
-                  color: C.text,
-                }}
-              />
-              <select
-                value={mFilter}
-                onChange={(e) => setMFilter(e.target.value)}
-                style={filtS}
-              >
-                <option value="__all__">All Merchants ({MASTER_DATA.length})</option>
-                {ALL_MERCHANTS.map((m) => (
-                  <option key={m} value={m}>
-                    {m} ({MASTER_DATA.filter((d) => d.merchant === m).length})
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="fade-up space-y-5">
+            <Card className="border-border/70 shadow-xs">
+              <CardContent className="flex flex-wrap items-center gap-3 px-5 py-4">
+                <div className="relative min-w-[260px] flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                  <Input
+                    value={mSearch}
+                    onChange={(e) => setMSearch(e.target.value)}
+                    placeholder="Search by company, MID, or GST number..."
+                    className="h-10 pl-9"
+                  />
+                </div>
+                <Select value={mFilter} onValueChange={setMFilter}>
+                  <SelectTrigger className="h-10 w-[220px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All Merchants ({MASTER_DATA.length})</SelectItem>
+                    {ALL_MERCHANTS.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m} ({MASTER_DATA.filter((d) => d.merchant === m).length})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
 
-            {/* Merchant cards */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(auto-fill,minmax(380px,1fr))",
-                gap: 16,
-              }}
-            >
+            <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(min(100%,400px),1fr))" }}>
               {ALL_MERCHANTS.filter((m) =>
                 mFilter === "__all__" ? true : m === mFilter
               ).map((m) => {
-                const comps = MASTER_DATA.filter(
-                  (d) => d.merchant === m
-                ).filter((c) => {
+                const comps = MASTER_DATA.filter((d) => d.merchant === m).filter((c) => {
                   if (!mSearch) return true;
                   const q = mSearch.toLowerCase();
                   return (
@@ -4008,154 +3971,82 @@ export default function App() {
                 const entries = rows.filter((r) => r.merchant === m);
                 const mT = sumR(entries);
                 return (
-                  <div
-                    key={m}
-                    style={{
-                      background: C.card,
-                      borderRadius: 14,
-                      border: `1px solid ${C.border}`,
-                      overflow: "hidden",
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: "14px 18px",
-                        borderBottom: `1px solid ${C.border}`,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        background: "linear-gradient(135deg,#f8fafc,#f0fdf4)",
-                      }}
-                    >
-                      <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          <div
-                            style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: 8,
-                              background: C.accent,
-                              color: "#fff",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontWeight: 700,
-                              fontSize: 13,
-                            }}
-                          >
-                            {m.substring(0, 2).toUpperCase()}
+                  <Card key={m} className="overflow-hidden border-border/70 shadow-xs">
+                    <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-gradient-to-br from-primary/8 to-primary/0 px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-violet-700 text-xs font-bold text-white shadow-sm">
+                          {m.substring(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold tracking-tight text-foreground">
+                            {m}
                           </div>
-                          <div>
-                            <div
-                              style={{
-                                fontSize: 15,
-                                fontWeight: 700,
-                                color: C.text,
-                              }}
-                            >
-                              {m}
-                            </div>
-                            <div style={{ fontSize: 11, color: C.muted }}>
-                              {comps.length} companies
-                            </div>
+                          <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <Users className="h-3 w-3" /> {comps.length} {comps.length === 1 ? "company" : "companies"}
                           </div>
                         </div>
                       </div>
                       {entries.length > 0 && (
-                        <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase", fontWeight: 600 }}>
+                        <div className="text-right">
+                          <div className="text-[9.5px] font-semibold uppercase tracking-wider text-muted-foreground">
                             Settled
                           </div>
-                          <div
-                            style={{
-                              fontSize: 15,
-                              fontWeight: 700,
-                              color: C.green,
-                              fontFamily: "'JetBrains Mono',monospace",
-                            }}
-                          >
+                          <div className="font-mono text-sm font-bold tabular-nums text-emerald-700">
                             {formatShort(mT.settlement)}
                           </div>
                         </div>
                       )}
                     </div>
-                    <div
-                      style={{
-                        maxHeight: 340,
-                        overflowY: "auto",
-                      }}
-                    >
+                    <div className="max-h-[340px] overflow-y-auto">
                       {comps.map((c, i) => (
                         <div
                           key={i}
-                          style={{
-                            padding: "10px 16px",
-                            borderBottom: `1px solid ${C.border}`,
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
-                          onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
+                          className="border-b border-border/50 px-4 py-2.5 transition-colors last:border-b-0 hover:bg-muted/40"
                         >
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div
-                                style={{
-                                  fontSize: 12,
-                                  fontWeight: 600,
-                                  color: C.text,
-                                  overflow: "hidden",
-                                  textOverflow: "ellipsis",
-                                  whiteSpace: "nowrap",
-                                }}
-                                title={c.company}
+                          <div
+                            className="overflow-hidden text-ellipsis whitespace-nowrap text-xs font-semibold text-foreground"
+                            title={c.company}
+                          >
+                            {c.company}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            {c.mid && (
+                              <span
+                                className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
+                                title="Merchant ID"
                               >
-                                {c.company}
-                              </div>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4, alignItems: "center" }}>
-                                {c.mid && (
-                                  <span
-                                    style={{
-                                      fontSize: 10,
-                                      fontFamily: "'JetBrains Mono',monospace",
-                                      color: C.muted,
-                                      background: C.bg,
-                                      padding: "2px 6px",
-                                      borderRadius: 4,
-                                    }}
-                                    title="Merchant ID"
-                                  >
-                                    {c.mid}
-                                  </span>
-                                )}
-                                {c.gstNumber && (
-                                  <span
-                                    style={{
-                                      fontSize: 10,
-                                      fontFamily: "'JetBrains Mono',monospace",
-                                      color: C.blue,
-                                    }}
-                                    title="GST Number"
-                                  >
-                                    {c.gstNumber}
-                                  </span>
-                                )}
-                                {c.incorporation && (
-                                  <span style={{ fontSize: 10, color: C.muted }} title="Incorporation date">
-                                    {"\uD83D\uDCC5 "}
-                                    {c.incorporation}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
+                                {c.mid}
+                              </span>
+                            )}
+                            {c.gstNumber && (
+                              <span
+                                className="rounded bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] text-blue-700"
+                                title="GST Number"
+                              >
+                                {c.gstNumber}
+                              </span>
+                            )}
+                            {c.incorporation && (
+                              <span
+                                className="flex items-center gap-1 text-[10px] text-muted-foreground"
+                                title="Incorporation date"
+                              >
+                                <CalendarIcon className="h-2.5 w-2.5" /> {c.incorporation}
+                              </span>
+                            )}
                           </div>
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </Card>
                 );
               })}
             </div>
           </div>
         )}
+
+        {/* ========== AUTOMATION ========== */}
+        {page === "automation" && <Automation />}
       </div>
     </div>
   );

@@ -1,0 +1,32 @@
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.venv
+venv
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Local DB + state — production gets its own volume
+*.db
+*.sqlite
+*.sqlite3
+
+# Secrets must never end up baked into the image
+secrets/credentials.json
+secrets/token.json
+secrets/*.json
+
+# Local env
+.env
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Tests
+tests
