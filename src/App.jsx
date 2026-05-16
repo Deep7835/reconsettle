@@ -1394,22 +1394,37 @@ export default function App() {
     };
 
     combinedByMerchant.forEach((g) => {
-      // Merge per-company rows from bank + source files under this merchant
+      // Merge per-company rows from bank + source files under this merchant.
+      // The same company may appear in multiple bank settlement files (e.g. 3 cycles
+      // per day), so we SUM their numbers rather than overwriting.
       const compMap = new Map();
       bankRows.filter((b) => (b.merchant || "Unmatched") === g.merchant).forEach((b) => {
         const key = (b.mid || normCompany(b.name)) || b.name;
-        compMap.set(key, {
-          mid: b.mid || "",
-          name: b.name,
-          bankCount: b.count,
-          bankPayin: b.amount,
-          bankFee: b.fee,
-          bankGst: b.gst,
-          bankSettle: b.settle,
-          chargeback: b.chargeback || 0,
-          netSettle: b.netSettle || (b.settle - (b.chargeback || 0)),
-          sourcePayin: 0,
-        });
+        const existing = compMap.get(key);
+        if (existing) {
+          existing.bankCount += b.count || 0;
+          existing.bankPayin += b.amount || 0;
+          existing.bankFee += b.fee || 0;
+          existing.bankGst += b.gst || 0;
+          existing.bankSettle += b.settle || 0;
+          existing.chargeback += b.chargeback || 0;
+          existing.netSettle += (b.netSettle != null ? b.netSettle : (b.settle - (b.chargeback || 0)));
+          // Keep the first non-empty MID we saw; bank files later in the day may omit it.
+          if (!existing.mid && b.mid) existing.mid = b.mid;
+        } else {
+          compMap.set(key, {
+            mid: b.mid || "",
+            name: b.name,
+            bankCount: b.count || 0,
+            bankPayin: b.amount || 0,
+            bankFee: b.fee || 0,
+            bankGst: b.gst || 0,
+            bankSettle: b.settle || 0,
+            chargeback: b.chargeback || 0,
+            netSettle: (b.netSettle != null ? b.netSettle : (b.settle - (b.chargeback || 0))),
+            sourcePayin: 0,
+          });
+        }
       });
       sourceRows.filter((s) => (s.merchant || "Unmatched") === g.merchant).forEach((s) => {
         const sNorm = normCompany(s.name);
