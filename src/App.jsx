@@ -1022,15 +1022,28 @@ export default function App() {
           if (/^total$/i.test(name)) break;
           const mid = mapping.mid != null ? String(row[mapping.mid] || "").trim() : "";
           const count = parseAmount(row[mapping.count]) || 0;
-          const amount = parseAmount(row[mapping.amount]) || 0;
-          const fee = parseAmount(row[mapping.fee]) || 0;
-          const gst = parseAmount(row[mapping.gst]) || 0;
-          const settle = parseAmount(row[mapping.settle]) || (amount - fee - gst);
+          // Read whichever columns the file actually has. Missing ones are derived below
+          // using the standard rates (0.35% fee + 18% GST on fee).
+          let amount = mapping.amount != null ? (parseAmount(row[mapping.amount]) || 0) : 0;
+          let fee    = mapping.fee    != null ? (parseAmount(row[mapping.fee])    || 0) : 0;
+          let gst    = mapping.gst    != null ? (parseAmount(row[mapping.gst])    || 0) : 0;
+          let settle = mapping.settle != null ? (parseAmount(row[mapping.settle]) || 0) : 0;
           const chargeback = mapping.chargeback != null ? (parseAmount(row[mapping.chargeback]) || 0) : 0;
+          // Skip empty rows up-front
+          if (amount <= 0 && settle <= 0) continue;
+          // Back-fill missing values from whatever IS available. Bank files vary:
+          //   - "Full" format: has Sum of Amount2 + Fee + GST + Settle → no derivation needed
+          //   - "Settle-only" format: only has Sum of Merchant Settle Amount → back-calculate
+          //     gross (Payin) from settle, then fee+GST from gross.
+          // factor = settle/gross when fees of 0.35% + 18% on fee are applied.
+          const factor = 1 - (CHARGE_RATE / 100) - ((CHARGE_RATE / 100) * (GST_RATE / 100));
+          if (amount <= 0 && settle > 0) amount = settle / factor; // back-calc gross from net
+          if (fee <= 0 && amount > 0)    fee = (amount * CHARGE_RATE) / 100;
+          if (gst <= 0 && fee  > 0)      gst = (fee * GST_RATE) / 100;
+          if (settle <= 0 && amount > 0) settle = amount - fee - gst;
           const netSettle = mapping.netSettle != null
             ? (parseAmount(row[mapping.netSettle]) || (settle - chargeback))
             : (settle - chargeback);
-          if (amount <= 0 && settle <= 0) continue;
           // Lookup parent merchant: prefer MID, then exact / normalized / fuzzy company match
           let master = mid ? MASTER_DATA.find((d) => d.mid && d.mid.toLowerCase() === mid.toLowerCase()) : null;
           if (!master) master = findMasterByCompany(name);
