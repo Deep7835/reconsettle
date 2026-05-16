@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 
-const CHARGE_RATE = 0.41;
-const GST_RATE = 0;
+const CHARGE_RATE = 0.35;
+const GST_RATE = 18;
 const GST_OPTIONS = [0, 5, 12, 18, 28];
 
 const MASTER_DATA = [
@@ -369,8 +369,10 @@ export default function App() {
   const [dlFrom, setDlFrom] = useState("");
   const [dlTo, setDlTo] = useState("");
   // Bank statement upload state
-  const [bankFile, setBankFile] = useState("");
-  const [bankRows, setBankRows] = useState([]); // raw rows per company from bank file
+  // Bank settlement supports multiple files (e.g. 3 settlement cycles per day);
+  // each row gets a `_sourceFile` tag so we can remove an individual file later.
+  const [bankFiles, setBankFiles] = useState([]); // [{ name, rowCount }]
+  const [bankRows, setBankRows] = useState([]); // raw rows per company from all bank files
   const [bankError, setBankError] = useState("");
   const [bankDragging, setBankDragging] = useState(false);
   // Source/internal payin upload state (just Name + Sum of Amount per company)
@@ -526,6 +528,51 @@ export default function App() {
   };
   const canAdd = pn > 0 && selM && selC;
 
+  // ---- Excel cell-style helpers (used by both download functions) ----
+  const STYLE_HEADER = {
+    font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FFFFFFFF" } },
+    fill: { patternType: "solid", fgColor: { rgb: "FF305496" } },
+    alignment: { horizontal: "center", vertical: "center", wrapText: true },
+    border: {
+      top:    { style: "thin", color: { rgb: "FF1F3864" } },
+      bottom: { style: "thin", color: { rgb: "FF1F3864" } },
+      left:   { style: "thin", color: { rgb: "FF1F3864" } },
+      right:  { style: "thin", color: { rgb: "FF1F3864" } },
+    },
+  };
+  const STYLE_TOTAL = {
+    font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FF1F3864" } },
+    fill: { patternType: "solid", fgColor: { rgb: "FFD9E1F2" } },
+    alignment: { vertical: "center" },
+    border: {
+      top:    { style: "medium", color: { rgb: "FF305496" } },
+      bottom: { style: "medium", color: { rgb: "FF305496" } },
+    },
+  };
+  const STYLE_BODY_NUM = (numFmt) => ({
+    alignment: { horizontal: "right", vertical: "center" },
+    ...(numFmt ? { numFmt } : {}),
+  });
+  // Apply STYLE_HEADER to the first row (row 1) for `nCols` columns of sheet `ws`.
+  const styleHeaderRow = (ws, nCols) => {
+    for (let c = 0; c < nCols; c++) {
+      const ref = XLSX.utils.encode_cell({ r: 0, c });
+      if (!ws[ref]) ws[ref] = { t: "s", v: "" };
+      ws[ref].s = STYLE_HEADER;
+    }
+    // A taller header row reads better with the wrap/center.
+    if (!ws["!rows"]) ws["!rows"] = [];
+    ws["!rows"][0] = { hpx: 32 };
+  };
+  // Apply STYLE_TOTAL to a specific row index (0-based) for `nCols` columns.
+  const styleTotalRow = (ws, rowIdx, nCols) => {
+    for (let c = 0; c < nCols; c++) {
+      const ref = XLSX.utils.encode_cell({ r: rowIdx, c });
+      if (!ws[ref]) ws[ref] = { t: "s", v: "" };
+      ws[ref].s = { ...(ws[ref].s || {}), ...STYLE_TOTAL };
+    }
+  };
+
   const downloadSheet = (rowsToExport, filename) => {
     if (!rowsToExport || rowsToExport.length === 0) return;
     const fmtDate = (iso) => {
@@ -627,6 +674,10 @@ export default function App() {
         }
       }
     }
+    // Style header + TOTAL row on the settlement report sheet
+    const settColCount = Object.keys(data[0] || {}).length;
+    styleHeaderRow(ws, settColCount);
+    styleTotalRow(ws, data.length, settColCount);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Settlements");
     const ts = new Date().toISOString().slice(0, 10);
@@ -923,9 +974,10 @@ export default function App() {
     return best;
   };
 
+  // Parse a single bank file and APPEND its rows to bankRows (so multiple files merge).
+  // If a file with the same name is already loaded, its rows are replaced.
   const parseBankFile = useCallback((file) => {
     setBankError("");
-    setBankRows([]);
     const ext = file.name.split(".").pop().toLowerCase();
     if (!["csv", "xlsx", "xls"].includes(ext)) {
       setBankError("Unsupported file type. Please upload a CSV or Excel file.");
@@ -994,14 +1046,19 @@ export default function App() {
             settle,
             chargeback,
             netSettle,
+            _sourceFile: file.name,
           });
         }
         if (out.length === 0) {
           setBankError("No data rows found in the file.");
           return;
         }
-        setBankRows(out);
-        setBankFile(file.name);
+        // Replace rows for any previously-loaded file with the same name, then append new rows.
+        setBankRows((prev) => [...prev.filter((r) => r._sourceFile !== file.name), ...out]);
+        setBankFiles((prev) => [
+          ...prev.filter((f) => f.name !== file.name),
+          { name: file.name, rowCount: out.length },
+        ]);
       } catch (err) {
         setBankError("Failed to parse file: " + err.message);
       }
@@ -1012,19 +1069,26 @@ export default function App() {
   const handleBankDrop = useCallback((e) => {
     e.preventDefault();
     setBankDragging(false);
-    const file = e.dataTransfer?.files?.[0] || e.target?.files?.[0];
-    if (file) parseBankFile(file);
+    const files = Array.from(e.dataTransfer?.files || e.target?.files || []);
+    files.forEach((f) => parseBankFile(f));
   }, [parseBankFile]);
 
   const handleBankInput = useCallback((e) => {
-    const f = e.target.files?.[0];
-    if (f) parseBankFile(f);
+    const files = Array.from(e.target.files || []);
+    files.forEach((f) => parseBankFile(f));
+    // Reset the input so the same file can be re-selected later
+    e.target.value = "";
   }, [parseBankFile]);
 
   const clearBank = () => {
     setBankRows([]);
-    setBankFile("");
+    setBankFiles([]);
     setBankError("");
+  };
+
+  const removeBankFile = (fileName) => {
+    setBankRows((prev) => prev.filter((r) => r._sourceFile !== fileName));
+    setBankFiles((prev) => prev.filter((f) => f.name !== fileName));
   };
 
   // ---- Source / internal payin file parsing (Name + Sum of Amount per company) ----
@@ -1301,6 +1365,11 @@ export default function App() {
       }
     }
 
+    // Style Summary sheet: blue header row + highlighted TOTAL row at the bottom
+    const summaryColCount = Object.keys(data[0] || {}).length;
+    styleHeaderRow(ws, summaryColCount);
+    styleTotalRow(ws, data.length, summaryColCount);
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Summary");
 
@@ -1426,6 +1495,10 @@ export default function App() {
         const cnt = detailWs["G" + row];
         if (cnt && typeof cnt.v === "number") { cnt.z = "#,##0"; cnt.t = "n"; }
       }
+      // Style header + TOTAL row on each per-merchant detail sheet
+      const detailColCount = Object.keys(detailData[0] || {}).length;
+      styleHeaderRow(detailWs, detailColCount);
+      styleTotalRow(detailWs, detailData.length, detailColCount);
       XLSX.utils.book_append_sheet(wb, detailWs, uniqueName(g.merchant));
     });
 
@@ -3090,48 +3163,89 @@ export default function App() {
                   )}
                 </div>
 
-                {/* Bank settlement */}
+                {/* Bank settlement — supports multiple files (e.g. 3 settlement cycles per day) */}
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: ".5px" }}>
-                      2. Bank Settlement
+                      2. Bank Settlement{bankFiles.length > 1 && ` (${bankFiles.length} files)`}
                     </div>
-                    {bankRows.length > 0 && (
+                    {bankFiles.length > 0 && (
                       <button onClick={clearBank} style={{ background: "none", border: "none", color: C.muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-                        Clear ×
+                        Clear all ×
                       </button>
                     )}
                   </div>
-                  {bankRows.length === 0 ? (
-                    <div
-                      onDragOver={(e) => { e.preventDefault(); setBankDragging(true); }}
-                      onDragLeave={() => setBankDragging(false)}
-                      onDrop={handleBankDrop}
-                      onClick={() => document.getElementById("bank-file-input")?.click()}
-                      style={{
-                        background: bankDragging ? "#ecfdf5" : C.bg,
-                        border: bankDragging ? `2.5px dashed ${C.accent}` : `2px dashed ${C.border}`,
-                        borderRadius: 12,
-                        padding: "24px 14px",
-                        textAlign: "center",
-                        cursor: "pointer",
-                        transition: "all .2s",
-                      }}
-                    >
-                      <input id="bank-file-input" type="file" accept=".csv,.xlsx,.xls" onChange={handleBankInput} style={{ display: "none" }} />
-                      <div style={{ fontSize: 24, marginBottom: 6 }}>{bankDragging ? "📥" : "🏦"}</div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 2 }}>
-                        {bankDragging ? "Drop here" : "Drag & drop bank settlement Excel"}
-                      </div>
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setBankDragging(true); }}
+                    onDragLeave={() => setBankDragging(false)}
+                    onDrop={handleBankDrop}
+                    onClick={() => document.getElementById("bank-file-input")?.click()}
+                    style={{
+                      background: bankDragging ? "#ecfdf5" : C.bg,
+                      border: bankDragging ? `2.5px dashed ${C.accent}` : `2px dashed ${C.border}`,
+                      borderRadius: 12,
+                      padding: bankFiles.length > 0 ? "14px 14px" : "24px 14px",
+                      textAlign: "center",
+                      cursor: "pointer",
+                      transition: "all .2s",
+                    }}
+                  >
+                    <input id="bank-file-input" type="file" accept=".csv,.xlsx,.xls" multiple onChange={handleBankInput} style={{ display: "none" }} />
+                    <div style={{ fontSize: bankFiles.length > 0 ? 18 : 24, marginBottom: 4 }}>
+                      {bankDragging ? "📥" : "🏦"}
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginBottom: 2 }}>
+                      {bankDragging
+                        ? "Drop file(s) here"
+                        : bankFiles.length > 0
+                          ? "+ Add another bank settlement file"
+                          : "Drag & drop bank settlement Excel(s) — multiple allowed"}
+                    </div>
+                    {bankFiles.length === 0 && (
                       <div style={{ fontSize: 10, color: C.muted }}>
                         Detects: MID · Name · Amount · Fee · GST · Settle · Chargeback
                       </div>
-                    </div>
-                  ) : (
-                    <div style={{ padding: "12px 14px", background: "#ecfdf5", borderRadius: 10, border: "1px solid #a7f3d0", fontSize: 11, color: "#065f46" }}>
-                      <div><strong>🏦 {bankFile}</strong></div>
-                      <div style={{ marginTop: 4 }}>
-                        {bankRows.length} companies · {bankByMerchant.length} merchants
+                    )}
+                  </div>
+                  {bankFiles.length > 0 && (
+                    <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                      {bankFiles.map((f) => {
+                        const fileRows = bankRows.filter((r) => r._sourceFile === f.name);
+                        const fileTotal = fileRows.reduce((s, r) => s + (r.amount || 0), 0);
+                        return (
+                          <div
+                            key={f.name}
+                            style={{
+                              padding: "8px 12px",
+                              background: "#ecfdf5",
+                              borderRadius: 8,
+                              border: "1px solid #a7f3d0",
+                              fontSize: 11,
+                              color: "#065f46",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              gap: 8,
+                            }}
+                          >
+                            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={f.name}>
+                              <strong>🏦 {f.name}</strong>
+                              <span style={{ marginLeft: 6, opacity: 0.8 }}>
+                                {f.rowCount} cos · {formatINR(fileTotal)}
+                              </span>
+                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); removeBankFile(f.name); }}
+                              style={{ background: "none", border: "none", color: "#065f46", fontSize: 14, fontWeight: 700, cursor: "pointer", padding: 0, lineHeight: 1 }}
+                              title="Remove this file"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        );
+                      })}
+                      <div style={{ fontSize: 11, color: C.muted, fontWeight: 600, paddingLeft: 4 }}>
+                        Total: {bankRows.length} companies · {bankByMerchant.length} merchants
                         {bankTotals.unmatched > 0 && (
                           <span style={{ color: "#991b1b", marginLeft: 6 }}>· {bankTotals.unmatched} unmatched</span>
                         )}
