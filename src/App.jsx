@@ -5,6 +5,23 @@ const CHARGE_RATE = 0.35;
 const GST_RATE = 18;
 const GST_OPTIONS = [0, 5, 12, 18, 28];
 
+// Bank settlement cycle presets (used as quick-fills for the recon settlement period).
+const RECON_CYCLE_PRESETS = [
+  { id: 1, label: "Cycle 1", range: "4 PM → 12 AM", start: "16:00", end: "23:59" },
+  { id: 2, label: "Cycle 2", range: "12 AM → 6 AM", start: "00:00", end: "05:59" },
+  { id: 3, label: "Cycle 3", range: "6 AM → 4 PM", start: "06:00", end: "15:59" },
+];
+
+// "2026-05-15" → "15-May-2026"
+function formatDateLong(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const mi = parseInt(m, 10) - 1;
+  if (mi < 0 || mi > 11) return iso;
+  return `${d}-${months[mi]}-${y}`;
+}
+
 const MASTER_DATA = [
   { mid: "MER0000000030641", merchant: "Aryan", company: "ECOMPANTHER SOLUTION PRIVATE LIMITED", moa: "DONE", incorporation: "19-05-2025", gstNumber: "05AAICE9033A1Z1" },
   { mid: "MER0000000030642", merchant: "Aryan", company: "ECOMNEXTGEN TECHNOLOGY PRIVATE LIMITED", moa: "DONE", incorporation: "30-04-2025", gstNumber: "27AAICE8602M1Z9" },
@@ -376,6 +393,10 @@ export default function App() {
   const [bankError, setBankError] = useState("");
   const [bankDragging, setBankDragging] = useState(false);
   // Source/internal payin upload state (just Name + Sum of Amount per company)
+  // Settlement period for the recon (date + time range). Embedded in the downloaded Excel.
+  const [reconDate, setReconDate] = useState("");       // ISO yyyy-mm-dd
+  const [reconStartTime, setReconStartTime] = useState("");
+  const [reconEndTime, setReconEndTime] = useState("");
   const [sourceFile, setSourceFile] = useState("");
   const [sourceRows, setSourceRows] = useState([]);
   const [sourceError, setSourceError] = useState("");
@@ -553,16 +574,16 @@ export default function App() {
     alignment: { horizontal: "right", vertical: "center" },
     ...(numFmt ? { numFmt } : {}),
   });
-  // Apply STYLE_HEADER to the first row (row 1) for `nCols` columns of sheet `ws`.
-  const styleHeaderRow = (ws, nCols) => {
+  // Apply STYLE_HEADER to the row at `rowIdx` (0-based, default 0) for `nCols` columns.
+  const styleHeaderRow = (ws, nCols, rowIdx = 0) => {
     for (let c = 0; c < nCols; c++) {
-      const ref = XLSX.utils.encode_cell({ r: 0, c });
+      const ref = XLSX.utils.encode_cell({ r: rowIdx, c });
       if (!ws[ref]) ws[ref] = { t: "s", v: "" };
       ws[ref].s = STYLE_HEADER;
     }
     // A taller header row reads better with the wrap/center.
     if (!ws["!rows"]) ws["!rows"] = [];
-    ws["!rows"][0] = { hpx: 32 };
+    ws["!rows"][rowIdx] = { hpx: 32 };
   };
   // Apply STYLE_TOTAL to a specific row index (0-based) for `nCols` columns.
   const styleTotalRow = (ws, rowIdx, nCols) => {
@@ -571,6 +592,45 @@ export default function App() {
       if (!ws[ref]) ws[ref] = { t: "s", v: "" };
       ws[ref].s = { ...(ws[ref].s || {}), ...STYLE_TOTAL };
     }
+  };
+
+  // Build a worksheet that has an optional metadata banner above the data table.
+  // Returns the worksheet AND the row indices needed for styling/numfmt.
+  const buildSheetWithMeta = (data, metaInfo) => {
+    const showMeta = metaInfo && (metaInfo.date || metaInfo.time);
+    if (!showMeta) {
+      const ws = XLSX.utils.json_to_sheet(data);
+      return { ws, headerRowIdx: 0, dataStartRow: 2, totalRowIdx: data.length };
+    }
+    // Build banner rows
+    const bannerRows = [];
+    bannerRows.push(["Settlement Reconciliation Report"]);
+    const periodLine = [];
+    if (metaInfo.date) periodLine.push("Date:", metaInfo.date);
+    if (metaInfo.time) {
+      if (periodLine.length) periodLine.push("", "Time:", metaInfo.time);
+      else periodLine.push("Time:", metaInfo.time);
+    }
+    bannerRows.push(periodLine);
+    bannerRows.push([]); // blank separator
+    const headerRowIdx = bannerRows.length; // 0-based, where the column headers will land
+    const ws = XLSX.utils.aoa_to_sheet(bannerRows);
+    XLSX.utils.sheet_add_json(ws, data, { origin: `A${headerRowIdx + 1}` });
+    // Style the banner title cell (bold + larger font, dark blue)
+    if (ws["A1"]) {
+      ws["A1"].s = {
+        font: { name: "Calibri", sz: 13, bold: true, color: { rgb: "FF1F3864" } },
+        alignment: { horizontal: "left", vertical: "center" },
+      };
+    }
+    if (!ws["!rows"]) ws["!rows"] = [];
+    ws["!rows"][0] = { hpx: 22 };
+    return {
+      ws,
+      headerRowIdx,
+      dataStartRow: headerRowIdx + 2, // 1-based row of the first data row
+      totalRowIdx: headerRowIdx + data.length, // 0-based index of the TOTAL row
+    };
   };
 
   const downloadSheet = (rowsToExport, filename) => {
@@ -1337,7 +1397,12 @@ export default function App() {
       "Difference (Bank Net − Our Net)": r2(bankTotals.diff),
       "Unmatched Companies": bankTotals.unmatched,
     });
-    const ws = XLSX.utils.json_to_sheet(data);
+    // Build period metadata once; embed it as a banner at the top of every sheet + the filename.
+    const periodDate = formatDateLong(reconDate);
+    const periodTime = (reconStartTime || reconEndTime) ? `${reconStartTime || "—"} to ${reconEndTime || "—"}` : "";
+    const periodMeta = (periodDate || periodTime) ? { date: periodDate, time: periodTime } : null;
+
+    const { ws, headerRowIdx, dataStartRow, totalRowIdx } = buildSheetWithMeta(data, periodMeta);
     ws["!cols"] = [
       { wch: 6 },   // A S.No
       { wch: 14 },  // B Merchant
@@ -1360,9 +1425,10 @@ export default function App() {
     ];
 
     // Apply 2-decimal money format to columns E..Q. Txn Count (D) uses integer format.
+    // Data rows start at `dataStartRow` (1-based) and run for data.length rows.
     const moneyCols = ["E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"];
     const numFmt = "#,##0.00";
-    for (let row = 2; row <= data.length + 1; row++) {
+    for (let row = dataStartRow; row < dataStartRow + data.length; row++) {
       for (const col of moneyCols) {
         const ref = col + row;
         const cell = ws[ref];
@@ -1380,8 +1446,8 @@ export default function App() {
 
     // Style Summary sheet: blue header row + highlighted TOTAL row at the bottom
     const summaryColCount = Object.keys(data[0] || {}).length;
-    styleHeaderRow(ws, summaryColCount);
-    styleTotalRow(ws, data.length, summaryColCount);
+    styleHeaderRow(ws, summaryColCount, headerRowIdx);
+    styleTotalRow(ws, totalRowIdx, summaryColCount);
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Summary");
@@ -1508,14 +1574,16 @@ export default function App() {
         "Net Settle": r2(tot.netSettle),
       });
 
-      const detailWs = XLSX.utils.json_to_sheet(detailData);
+      // Build with the same Settlement Period banner at the top
+      const detail = buildSheetWithMeta(detailData, periodMeta);
+      const detailWs = detail.ws;
       detailWs["!cols"] = [
         { wch: 6 }, { wch: 18 }, { wch: 42 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
         { wch: 10 }, { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 14 }, { wch: 16 },
       ];
       // Apply 2-decimal format to money columns (D..F, H..L)
       const detailMoney = ["D", "E", "F", "H", "I", "J", "K", "L"];
-      for (let row = 2; row <= detailData.length + 1; row++) {
+      for (let row = detail.dataStartRow; row < detail.dataStartRow + detailData.length; row++) {
         for (const col of detailMoney) {
           const cell = detailWs[col + row];
           if (cell && typeof cell.v === "number") { cell.z = numFmt; cell.t = "n"; }
@@ -1525,12 +1593,19 @@ export default function App() {
       }
       // Style header + TOTAL row on each per-merchant detail sheet
       const detailColCount = Object.keys(detailData[0] || {}).length;
-      styleHeaderRow(detailWs, detailColCount);
-      styleTotalRow(detailWs, detailData.length, detailColCount);
+      styleHeaderRow(detailWs, detailColCount, detail.headerRowIdx);
+      styleTotalRow(detailWs, detail.totalRowIdx, detailColCount);
       XLSX.utils.book_append_sheet(wb, detailWs, uniqueName(g.merchant));
     });
 
-    XLSX.writeFile(wb, `bank_recon_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    // Filename includes the settlement date when set
+    const fileDate = reconDate || new Date().toISOString().slice(0, 10);
+    const cycleTag = (() => {
+      if (!reconStartTime || !reconEndTime) return "";
+      const preset = RECON_CYCLE_PRESETS.find(p => p.start === reconStartTime && p.end === reconEndTime);
+      return preset ? `_C${preset.id}` : `_${reconStartTime.replace(":", "")}-${reconEndTime.replace(":", "")}`;
+    })();
+    XLSX.writeFile(wb, `bank_recon_${fileDate}${cycleTag}.xlsx`);
   };
 
   const addRecon = () => {
@@ -3132,6 +3207,105 @@ export default function App() {
                       <SI d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12v8m0 0l-4-4m4 4l4-4M12 4v4" />
                       Download Recon
                     </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Settlement Period: which date + time range this recon is for.
+                  The values get embedded in the downloaded Excel and the filename. */}
+              <div
+                style={{
+                  marginBottom: 14,
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  background: "#f8fafc",
+                  border: `1px solid ${C.border}`,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: ".5px" }}>
+                    Settlement Period
+                  </div>
+                  {(reconDate || reconStartTime || reconEndTime) && (
+                    <button
+                      onClick={() => { setReconDate(""); setReconStartTime(""); setReconEndTime(""); }}
+                      style={{ background: "none", border: "none", color: C.muted, fontSize: 11, fontWeight: 600, cursor: "pointer" }}
+                    >
+                      Clear ×
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    <label style={{ fontSize: 10, fontWeight: 600, color: C.muted }}>Date</label>
+                    <input
+                      type="date"
+                      value={reconDate}
+                      onChange={(e) => setReconDate(e.target.value)}
+                      style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12, color: C.text, background: "#fff" }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    <label style={{ fontSize: 10, fontWeight: 600, color: C.muted }}>From Time</label>
+                    <input
+                      type="time"
+                      value={reconStartTime}
+                      onChange={(e) => setReconStartTime(e.target.value)}
+                      style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12, color: C.text, background: "#fff", fontFamily: "'JetBrains Mono',monospace" }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    <label style={{ fontSize: 10, fontWeight: 600, color: C.muted }}>To Time</label>
+                    <input
+                      type="time"
+                      value={reconEndTime}
+                      onChange={(e) => setReconEndTime(e.target.value)}
+                      style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12, color: C.text, background: "#fff", fontFamily: "'JetBrains Mono',monospace" }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    <label style={{ fontSize: 10, fontWeight: 600, color: C.muted }}>Quick fill (cycle)</label>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {RECON_CYCLE_PRESETS.map((p) => {
+                        const active = reconStartTime === p.start && reconEndTime === p.end;
+                        return (
+                          <button
+                            key={p.id}
+                            onClick={() => {
+                              setReconStartTime(p.start);
+                              setReconEndTime(p.end);
+                              if (!reconDate) setReconDate(new Date().toISOString().slice(0, 10));
+                            }}
+                            title={p.range}
+                            style={{
+                              padding: "6px 10px",
+                              borderRadius: 8,
+                              border: `1px solid ${active ? C.accent : C.border}`,
+                              background: active ? C.accent : "#fff",
+                              color: active ? "#fff" : C.text,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              gap: 1,
+                            }}
+                          >
+                            <span>{p.label}</span>
+                            <span style={{ fontSize: 9, fontWeight: 500, opacity: 0.85 }}>{p.range}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+                {(reconDate || (reconStartTime && reconEndTime)) && (
+                  <div style={{ marginTop: 8, fontSize: 11, color: "#1e40af", fontWeight: 600 }}>
+                    📅 {formatDateLong(reconDate) || "—"}
+                    {(reconStartTime || reconEndTime) && (
+                      <span> · ⏱ {reconStartTime || "—"} to {reconEndTime || "—"}</span>
+                    )}
                   </div>
                 )}
               </div>
