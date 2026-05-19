@@ -437,6 +437,28 @@ export default function App() {
   const [reconEndTime, setReconEndTime] = useState("");
   // Filter the recon table and the downloaded Excel to a single parent merchant.
   const [reconMerchantFilter, setReconMerchantFilter] = useState("__all__");
+
+  // Persisted recons (localStorage). Each entry captures the inputs needed to restore
+  // the full recon view: merchant, date+time, uploaded files, and the parsed rows.
+  const RECON_STORAGE_KEY = "settleops_saved_recons_v1";
+  const [savedRecons, setSavedRecons] = useState(() => {
+    try {
+      const raw = localStorage.getItem(RECON_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(RECON_STORAGE_KEY, JSON.stringify(savedRecons));
+    } catch (err) {
+      // Quota exceeded or storage unavailable — silently degrade (recons stay in memory only).
+      // eslint-disable-next-line no-console
+      console.warn("Could not persist saved recons:", err && err.message);
+    }
+  }, [savedRecons]);
+  const [savedReconsFilter, setSavedReconsFilter] = useState("__all__");
   const [sourceFile, setSourceFile] = useState("");
   const [sourceRows, setSourceRows] = useState([]);
   const [sourceError, setSourceError] = useState("");
@@ -1293,6 +1315,77 @@ export default function App() {
     setSourceFile("");
     setSourceError("");
   };
+
+  // ---- Saved Recons (persisted to localStorage) ----
+  // Clear all the in-page recon state so the form is ready for a fresh day.
+  const clearAllReconInputs = () => {
+    setSourceRows([]); setSourceFile(""); setSourceError("");
+    setBankRows([]); setBankFiles([]); setBankError("");
+    setReconStartTime(""); setReconEndTime("");
+  };
+
+  // Snapshot the current recon state (merchant + date/time + uploaded data) into
+  // localStorage so the user can reload it later. Returns the saved entry's id.
+  const saveCurrentRecon = () => {
+    if (sourceRows.length === 0 && bankRows.length === 0) {
+      alert("Nothing to save — upload at least one file first.");
+      return null;
+    }
+    const merchantLabel = reconMerchantFilter === "__all__" ? "All merchants" : reconMerchantFilter;
+    const dateLabel = reconDate || "(no date)";
+    const id = `recon_${Date.now()}`;
+    const entry = {
+      id,
+      merchant: reconMerchantFilter,
+      merchantLabel,
+      date: reconDate,
+      dateLabel,
+      startTime: reconStartTime,
+      endTime: reconEndTime,
+      sourceFile,
+      sourceRows: [...sourceRows],
+      bankFiles: [...bankFiles],
+      bankRows: [...bankRows],
+      savedAt: Date.now(),
+    };
+    // If a recon with the same (merchant, date) already exists, replace it.
+    setSavedRecons((prev) => {
+      const dupIdx = prev.findIndex((r) => r.merchant === entry.merchant && r.date === entry.date);
+      if (dupIdx >= 0) {
+        const next = [...prev];
+        next[dupIdx] = entry;
+        return next;
+      }
+      return [entry, ...prev];
+    });
+    return id;
+  };
+
+  const loadSavedRecon = (entry) => {
+    if (!entry) return;
+    setSourceFile(entry.sourceFile || "");
+    setSourceRows(entry.sourceRows || []);
+    setSourceError("");
+    setBankFiles(entry.bankFiles || []);
+    setBankRows(entry.bankRows || []);
+    setBankError("");
+    setReconDate(entry.date || "");
+    setReconStartTime(entry.startTime || "");
+    setReconEndTime(entry.endTime || "");
+    setReconMerchantFilter(entry.merchant || "__all__");
+  };
+
+  const deleteSavedRecon = (id) => {
+    if (!confirm("Delete this saved recon?")) return;
+    setSavedRecons((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  // Visible list of saved recons, optionally narrowed by the merchant filter on the panel.
+  const visibleSavedRecons = useMemo(() => {
+    let list = [...savedRecons].sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+    if (savedReconsFilter !== "__all__") list = list.filter((r) => r.merchant === savedReconsFilter);
+    return list;
+  }, [savedRecons, savedReconsFilter]);
 
   // Aggregate source rows by parent merchant
   const sourceByMerchant = useMemo(() => {
@@ -3443,6 +3536,109 @@ export default function App() {
               ))}
             </div>
 
+            {/* Saved Recons (persisted to localStorage) — load past days back any time. */}
+            {savedRecons.length > 0 && (
+              <div
+                style={{
+                  background: C.card,
+                  borderRadius: 14,
+                  border: `1px solid ${C.border}`,
+                  padding: "18px 20px",
+                  marginBottom: 16,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
+                      💾 Saved Recons
+                    </div>
+                    <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>
+                      Click any row to reload it — overrides the current files & date.
+                    </div>
+                  </div>
+                  <select
+                    value={savedReconsFilter}
+                    onChange={(e) => setSavedReconsFilter(e.target.value)}
+                    style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 12, fontWeight: 600, background: "#fff", cursor: "pointer" }}
+                  >
+                    <option value="__all__">All merchants ({savedRecons.length})</option>
+                    {[...new Set(savedRecons.map((r) => r.merchant))].sort().map((m) => (
+                      <option key={m} value={m}>
+                        {m === "__all__" ? "All merchants" : m} ({savedRecons.filter((r) => r.merchant === m).length})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
+                  {visibleSavedRecons.length === 0 && (
+                    <div style={{ fontSize: 12, color: C.muted, padding: "12px 0", textAlign: "center" }}>
+                      No saved recons match this filter.
+                    </div>
+                  )}
+                  {visibleSavedRecons.map((entry) => {
+                    const totalSource = (entry.sourceRows || []).reduce((s, r) => s + (r.amount || 0), 0);
+                    const totalBank = (entry.bankRows || []).reduce((s, r) => s + (r.settle || 0), 0);
+                    const dateText = entry.date ? formatDateLong(entry.date) : "(no date)";
+                    const cycles = [...new Set((entry.bankFiles || []).map((f) => f.cycle).filter(Boolean))].sort();
+                    return (
+                      <div
+                        key={entry.id}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          padding: "10px 12px",
+                          borderRadius: 8,
+                          border: `1px solid ${C.border}`,
+                          background: "#fafbfc",
+                          fontSize: 12,
+                          gap: 8,
+                        }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            <span style={{ fontWeight: 700, color: C.accent, fontSize: 13 }}>
+                              {entry.merchantLabel || "All merchants"}
+                            </span>
+                            <span style={{ color: C.muted }}>·</span>
+                            <span style={{ fontWeight: 600, color: C.text }}>{dateText}</span>
+                            {cycles.length > 0 && (
+                              <span style={{ marginLeft: 4, display: "flex", gap: 3 }}>
+                                {cycles.map((c) => (
+                                  <span key={c} style={{ padding: "1px 6px", borderRadius: 4, background: "#065f46", color: "#fff", fontSize: 9, fontWeight: 700 }}>
+                                    C{c}
+                                  </span>
+                                ))}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>
+                            Source: {formatINR(totalSource)} · Bank settle: {formatINR(totalBank)} · {(entry.bankFiles || []).length} bank file(s)
+                            {entry.startTime && entry.endTime && ` · ${entry.startTime}–${entry.endTime}`}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button
+                            onClick={() => loadSavedRecon(entry)}
+                            style={{ padding: "6px 12px", borderRadius: 6, border: "none", background: C.accent, color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                          >
+                            Load
+                          </button>
+                          <button
+                            onClick={() => deleteSavedRecon(entry.id)}
+                            style={{ padding: "6px 10px", borderRadius: 6, border: `1px solid ${C.border}`, background: "#fff", color: C.red, fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                            title="Delete this saved recon"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Reconciliation Uploads */}
             <div
               style={{
@@ -3462,44 +3658,76 @@ export default function App() {
                     Upload internal payin and bank settlement files — auto-aggregates by merchant
                   </div>
                 </div>
-                {(bankRows.length > 0 || sourceRows.length > 0) && (
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                    {/* Merchant filter — limits the in-app table AND the downloaded Excel */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: ".5px" }}>
-                        Merchant
-                      </span>
-                      <select
-                        value={reconMerchantFilter}
-                        onChange={(e) => setReconMerchantFilter(e.target.value)}
-                        style={{
-                          padding: "7px 10px",
-                          borderRadius: 8,
-                          border: `1px solid ${reconMerchantFilter === "__all__" ? C.border : C.accent}`,
-                          background: reconMerchantFilter === "__all__" ? "#fff" : "#ecfdf5",
-                          color: C.text,
-                          fontSize: 12,
-                          fontWeight: 600,
-                          cursor: "pointer",
-                        }}
-                      >
-                        <option value="__all__">All merchants ({combinedByMerchant.length})</option>
-                        {combinedByMerchant.map((g) => (
-                          <option key={g.merchant} value={g.merchant}>
-                            {g.merchant}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <button
-                      onClick={downloadBankRecon}
-                      style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: C.accent, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  {/* Merchant filter — primary picker; limits both the in-app table and the
+                      downloaded Excel. Shown even before any files are uploaded so the user
+                      can pick the merchant first and then upload that merchant's data. */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: ".5px" }}>
+                      Merchant
+                    </span>
+                    <select
+                      value={reconMerchantFilter}
+                      onChange={(e) => setReconMerchantFilter(e.target.value)}
+                      style={{
+                        padding: "7px 10px",
+                        borderRadius: 8,
+                        border: `1px solid ${reconMerchantFilter === "__all__" ? C.border : C.accent}`,
+                        background: reconMerchantFilter === "__all__" ? "#fff" : "#ecfdf5",
+                        color: C.text,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        minWidth: 180,
+                      }}
                     >
-                      <SI d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12v8m0 0l-4-4m4 4l4-4M12 4v4" />
-                      {reconMerchantFilter === "__all__" ? "Download Recon" : `Download ${reconMerchantFilter}`}
-                    </button>
+                      <option value="__all__">
+                        {combinedByMerchant.length > 0
+                          ? `All merchants (${combinedByMerchant.length})`
+                          : "All merchants"}
+                      </option>
+                      {combinedByMerchant.length > 0
+                        ? combinedByMerchant.map((g) => (
+                            <option key={g.merchant} value={g.merchant}>{g.merchant}</option>
+                          ))
+                        : ALL_MERCHANTS.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                    </select>
                   </div>
-                )}
+                  {(bankRows.length > 0 || sourceRows.length > 0) && (
+                    <>
+                      <button
+                        onClick={() => {
+                          const id = saveCurrentRecon();
+                          if (id) alert("Recon saved — you can load it back from the Saved Recons panel.");
+                        }}
+                        style={{ padding: "8px 14px", borderRadius: 8, border: `1px solid ${C.accent}`, background: "#fff", color: C.accent, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                        title="Save current files + date so you can reload this recon later"
+                      >
+                        💾 Save Recon
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm("Clear all uploaded files and reset the period? (Saved recons are NOT affected.)")) {
+                            clearAllReconInputs();
+                          }
+                        }}
+                        style={{ padding: "8px 14px", borderRadius: 8, border: `1px solid ${C.border}`, background: "#fff", color: C.muted, fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                        title="Start a fresh recon (e.g. for the next day) — saved recons aren't deleted"
+                      >
+                        New day
+                      </button>
+                      <button
+                        onClick={downloadBankRecon}
+                        style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: C.accent, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                      >
+                        <SI d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12v8m0 0l-4-4m4 4l4-4M12 4v4" />
+                        {reconMerchantFilter === "__all__" ? "Download Recon" : `Download ${reconMerchantFilter}`}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
 
               {/* Settlement Period: which date + time range this recon is for.
