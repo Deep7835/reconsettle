@@ -397,6 +397,8 @@ export default function App() {
   const [reconDate, setReconDate] = useState("");       // ISO yyyy-mm-dd
   const [reconStartTime, setReconStartTime] = useState("");
   const [reconEndTime, setReconEndTime] = useState("");
+  // Filter the recon table and the downloaded Excel to a single parent merchant.
+  const [reconMerchantFilter, setReconMerchantFilter] = useState("__all__");
   const [sourceFile, setSourceFile] = useState("");
   const [sourceRows, setSourceRows] = useState([]);
   const [sourceError, setSourceError] = useState("");
@@ -1352,12 +1354,48 @@ export default function App() {
     }), { sourcePayin: 0, sourceCount: 0, bankPayin: 0, payinDiff: 0 });
   }, [combinedByMerchant]);
 
+  // Filter view: limit the recon table and the downloaded Excel to a specific merchant.
+  const filteredCombinedByMerchant = useMemo(() => {
+    if (reconMerchantFilter === "__all__") return combinedByMerchant;
+    return combinedByMerchant.filter((g) => g.merchant === reconMerchantFilter);
+  }, [combinedByMerchant, reconMerchantFilter]);
+
+  // Totals respect the filter so the TOTAL row reflects only the visible merchant(s).
+  const filteredCombinedTotals = useMemo(() => {
+    return filteredCombinedByMerchant.reduce((s, g) => ({
+      sourcePayin: s.sourcePayin + (g.sourcePayin || 0),
+      sourceCount: s.sourceCount + (g.sourceCount || 0),
+      bankPayin: s.bankPayin + (g.amount || 0),
+      payinDiff: s.payinDiff + (g.payinDiff || 0),
+      fee: s.fee + (g.fee || 0),
+      gst: s.gst + (g.gst || 0),
+      settle: s.settle + (g.settle || 0),
+      chargeback: s.chargeback + (g.chargeback || 0),
+      netSettle: s.netSettle + (g.netSettle || 0),
+      ourSettle: s.ourSettle + (g.ourSettle || 0),
+      ourNet: s.ourNet + (g.ourNet || 0),
+      diff: s.diff + (g.diff || 0),
+    }), { sourcePayin: 0, sourceCount: 0, bankPayin: 0, payinDiff: 0, fee: 0, gst: 0, settle: 0, chargeback: 0, netSettle: 0, ourSettle: 0, ourNet: 0, diff: 0 });
+  }, [filteredCombinedByMerchant]);
+
   const downloadBankRecon = () => {
     if (combinedByMerchant.length === 0) return;
+    if (filteredCombinedByMerchant.length === 0) {
+      alert(`No data for "${reconMerchantFilter}" — change the merchant filter and try again.`);
+      return;
+    }
     const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
     const feeLabel = `Our Fee (${CHARGE_RATE}%)`;
     const gstLabel = `Our GST (${GST_RATE}%)`;
-    const data = combinedByMerchant.map((g, i) => ({
+    // Respect the in-app merchant filter — if a single merchant is selected, only their
+    // row(s) make it into Summary and only their detail sheet is produced.
+    const exportMerchants = filteredCombinedByMerchant;
+    const exportTotals = filteredCombinedTotals;
+    const exportTotalCompanies = exportMerchants.reduce((s, g) => s + (g.companies || 0), 0);
+    const exportTotalCount = exportMerchants.reduce((s, g) => s + (g.count || 0), 0);
+    const exportTotalUnmatched = exportMerchants.reduce((s, g) => s + (g.unmatched || 0), 0);
+
+    const data = exportMerchants.map((g, i) => ({
       "S.No": i + 1,
       Merchant: g.merchant,
       Companies: g.companies,
@@ -1380,22 +1418,22 @@ export default function App() {
     data.push({
       "S.No": "",
       Merchant: "TOTAL",
-      Companies: bankTotals.companies,
-      "Txn Count": bankTotals.count,
-      "Source Payin": r2(combinedTotals.sourcePayin),
-      "Bank Payin": r2(combinedTotals.bankPayin),
-      "Payin Diff (Source − Bank)": r2(combinedTotals.payinDiff),
-      "Bank Fee": r2(bankTotals.fee),
-      "Bank GST": r2(bankTotals.gst),
-      "Bank Settlement": r2(bankTotals.settle),
-      "Chargeback Received": r2(bankTotals.chargeback),
-      "Net Merchant Settlement": r2(bankTotals.netSettle),
-      [feeLabel]: r2(bankTotals.amount * CHARGE_RATE / 100),
-      [gstLabel]: r2((bankTotals.amount * CHARGE_RATE / 100) * GST_RATE / 100),
-      "Our Settlement": r2(bankTotals.ourSettle),
-      "Our Net (after CB)": r2(bankTotals.ourNet),
-      "Difference (Bank Net − Our Net)": r2(bankTotals.diff),
-      "Unmatched Companies": bankTotals.unmatched,
+      Companies: exportTotalCompanies,
+      "Txn Count": exportTotalCount,
+      "Source Payin": r2(exportTotals.sourcePayin),
+      "Bank Payin": r2(exportTotals.bankPayin),
+      "Payin Diff (Source − Bank)": r2(exportTotals.payinDiff),
+      "Bank Fee": r2(exportTotals.fee),
+      "Bank GST": r2(exportTotals.gst),
+      "Bank Settlement": r2(exportTotals.settle),
+      "Chargeback Received": r2(exportTotals.chargeback),
+      "Net Merchant Settlement": r2(exportTotals.netSettle),
+      [feeLabel]: r2(exportTotals.bankPayin * CHARGE_RATE / 100),
+      [gstLabel]: r2((exportTotals.bankPayin * CHARGE_RATE / 100) * GST_RATE / 100),
+      "Our Settlement": r2(exportTotals.ourSettle),
+      "Our Net (after CB)": r2(exportTotals.ourNet),
+      "Difference (Bank Net − Our Net)": r2(exportTotals.diff),
+      "Unmatched Companies": exportTotalUnmatched,
     });
     // Build period metadata once; embed it as a banner at the top of every sheet + the filename.
     const periodDate = formatDateLong(reconDate);
@@ -1472,7 +1510,7 @@ export default function App() {
       return n;
     };
 
-    combinedByMerchant.forEach((g) => {
+    exportMerchants.forEach((g) => {
       // Merge per-company rows from bank + source files under this merchant.
       // The same company may appear in multiple bank settlement files (e.g. 3 cycles
       // per day), so we SUM their numbers rather than overwriting.
@@ -1605,7 +1643,10 @@ export default function App() {
       const preset = RECON_CYCLE_PRESETS.find(p => p.start === reconStartTime && p.end === reconEndTime);
       return preset ? `_C${preset.id}` : `_${reconStartTime.replace(":", "")}-${reconEndTime.replace(":", "")}`;
     })();
-    XLSX.writeFile(wb, `bank_recon_${fileDate}${cycleTag}.xlsx`);
+    const merchantTag = reconMerchantFilter !== "__all__"
+      ? `_${reconMerchantFilter.replace(/[^a-z0-9-]/gi, "")}`
+      : "";
+    XLSX.writeFile(wb, `bank_recon_${fileDate}${cycleTag}${merchantTag}.xlsx`);
   };
 
   const addRecon = () => {
@@ -3199,13 +3240,40 @@ export default function App() {
                   </div>
                 </div>
                 {(bankRows.length > 0 || sourceRows.length > 0) && (
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    {/* Merchant filter — limits the in-app table AND the downloaded Excel */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: ".5px" }}>
+                        Merchant
+                      </span>
+                      <select
+                        value={reconMerchantFilter}
+                        onChange={(e) => setReconMerchantFilter(e.target.value)}
+                        style={{
+                          padding: "7px 10px",
+                          borderRadius: 8,
+                          border: `1px solid ${reconMerchantFilter === "__all__" ? C.border : C.accent}`,
+                          background: reconMerchantFilter === "__all__" ? "#fff" : "#ecfdf5",
+                          color: C.text,
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <option value="__all__">All merchants ({combinedByMerchant.length})</option>
+                        {combinedByMerchant.map((g) => (
+                          <option key={g.merchant} value={g.merchant}>
+                            {g.merchant}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <button
                       onClick={downloadBankRecon}
                       style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: C.accent, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
                     >
                       <SI d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12v8m0 0l-4-4m4 4l4-4M12 4v4" />
-                      Download Recon
+                      {reconMerchantFilter === "__all__" ? "Download Recon" : `Download ${reconMerchantFilter}`}
                     </button>
                   </div>
                 )}
@@ -3485,7 +3553,7 @@ export default function App() {
                         </tr>
                       </thead>
                       <tbody>
-                        {combinedByMerchant.map((g) => (
+                        {filteredCombinedByMerchant.map((g) => (
                           <tr key={g.merchant} style={{ borderBottom: `1px solid ${C.border}` }} onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")} onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}>
                             <td style={{ padding: "10px 10px", fontWeight: 700, color: g.merchant === "Unmatched" ? C.red : C.accent }}>
                               {g.merchant}
@@ -3530,28 +3598,28 @@ export default function App() {
                         <tr style={{ background: "#f1f5f9", borderTop: `2px solid ${C.border}` }}>
                           <td style={{ padding: "10px 10px", fontWeight: 700, color: C.text }}>TOTAL</td>
                           {sourceRows.length > 0 && (
-                            <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: "#7c3aed" }}>{formatINR(combinedTotals.sourcePayin)}</td>
+                            <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: "#7c3aed" }}>{formatINR(filteredCombinedTotals.sourcePayin)}</td>
                           )}
                           {bankRows.length > 0 && (
-                            <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{formatINR(combinedTotals.bankPayin)}</td>
+                            <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700 }}>{formatINR(filteredCombinedTotals.bankPayin)}</td>
                           )}
                           {sourceRows.length > 0 && bankRows.length > 0 && (
-                            <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: Math.abs(combinedTotals.payinDiff) <= 1 ? C.green : C.red }}>
-                              {combinedTotals.payinDiff > 0 ? "+" : ""}{formatINR(combinedTotals.payinDiff)}
+                            <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: Math.abs(filteredCombinedTotals.payinDiff) <= 1 ? C.green : C.red }}>
+                              {filteredCombinedTotals.payinDiff > 0 ? "+" : ""}{formatINR(filteredCombinedTotals.payinDiff)}
                             </td>
                           )}
                           {bankRows.length > 0 && (
                             <>
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.orange }}>{formatINR(bankTotals.fee)}</td>
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.red }}>{formatINR(bankTotals.gst)}</td>
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.blue }}>{formatINR(bankTotals.settle)}</td>
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: bankTotals.chargeback > 0 ? "#dc2626" : C.muted }}>
-                                {bankTotals.chargeback > 0 ? "−" + formatINR(bankTotals.chargeback) : "—"}
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.orange }}>{formatINR(filteredCombinedTotals.fee)}</td>
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.red }}>{formatINR(filteredCombinedTotals.gst)}</td>
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.blue }}>{formatINR(filteredCombinedTotals.settle)}</td>
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: filteredCombinedTotals.chargeback > 0 ? "#dc2626" : C.muted }}>
+                                {filteredCombinedTotals.chargeback > 0 ? "−" + formatINR(filteredCombinedTotals.chargeback) : "—"}
                               </td>
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: "#1e40af" }}>{formatINR(bankTotals.netSettle)}</td>
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.green }}>{formatINR(bankTotals.ourNet)}</td>
-                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: Math.abs(bankTotals.diff) <= 1 ? C.green : C.red }}>
-                                {bankTotals.diff > 0 ? "+" : ""}{formatINR(bankTotals.diff)}
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: "#1e40af" }}>{formatINR(filteredCombinedTotals.netSettle)}</td>
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: C.green }}>{formatINR(filteredCombinedTotals.ourNet)}</td>
+                              <td style={{ padding: "10px 10px", textAlign: "right", fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: Math.abs(filteredCombinedTotals.diff) <= 1 ? C.green : C.red }}>
+                                {filteredCombinedTotals.diff > 0 ? "+" : ""}{formatINR(filteredCombinedTotals.diff)}
                               </td>
                             </>
                           )}
