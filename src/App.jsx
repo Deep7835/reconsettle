@@ -1531,66 +1531,139 @@ export default function App() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Summary");
 
-    // ----- Cycle Breakdown sheet -----
-    // Group bank rows by detected cycle (1/2/3) and emit one row per cycle showing
-    // Date | Cycle | StartTime | EndTime | Settlement_Date | Payin | Settlement_Amount
-    // | ChargeBack | InternalCharge | Settlement.
-    // Respects the merchant filter (so it's per-merchant when one is selected).
+    // ----- Cycle Breakdown sheet (per cycle × per company) -----
+    // For each cycle that has data, emit one row per company that appeared in that cycle's
+    // bank file, plus a "Cycle N Total" subtotal row, and a Grand Total at the end.
+    // Columns: Date | Cycle | StartTime | EndTime | Settlement_Date | Company |
+    //          Payin | Settlement_Amount | ChargeBack | InternalCharge | Settlement
+    // Respects the merchant filter (so when one merchant is selected, only that merchant's
+    // companies are listed).
     const cyclesPresent = [1, 2, 3].filter((id) => {
       return bankRows.some((r) => r._cycle === id && (reconMerchantFilter === "__all__" || r.merchant === reconMerchantFilter));
     });
     if (cyclesPresent.length > 0) {
       const dayDate = formatDateLong(reconDate);
-      // Payin for this recon period = source total (respect merchant filter when set)
-      const filteredSourceTotal = reconMerchantFilter === "__all__"
-        ? sourceRows.reduce((s, r) => s + (r.amount || 0), 0)
-        : sourceRows.filter((r) => r.merchant === reconMerchantFilter).reduce((s, r) => s + (r.amount || 0), 0);
-      const cycleData = cyclesPresent.map((id) => {
-        const preset = RECON_CYCLE_PRESETS.find((p) => p.id === id);
-        const rowsForCycle = bankRows.filter((r) => {
-          if (r._cycle !== id) return false;
-          if (reconMerchantFilter !== "__all__" && r.merchant !== reconMerchantFilter) return false;
-          return true;
+      // Per-company day payin (from internal payin file), keyed by normalized company name.
+      const sourcePayinByCompany = new Map();
+      sourceRows
+        .filter((s) => reconMerchantFilter === "__all__" || s.merchant === reconMerchantFilter)
+        .forEach((s) => {
+          const key = normCompany(s.name);
+          sourcePayinByCompany.set(key, (sourcePayinByCompany.get(key) || 0) + (s.amount || 0));
         });
-        const settleAmt = rowsForCycle.reduce((s, r) => s + (r.settle || 0), 0);
-        const chargeback = rowsForCycle.reduce((s, r) => s + (r.chargeback || 0), 0);
-        // Internal charge = our effective rate (CHARGE_RATE + GST_RATE on charge) applied to settle.
-        const internalCharge = settleAmt * (CHARGE_RATE / 100) * (1 + GST_RATE / 100);
-        const finalSettlement = settleAmt - chargeback - internalCharge;
+      const filteredSourceTotal = [...sourcePayinByCompany.values()].reduce((s, v) => s + v, 0);
+
+      // Track which companies have already had their Payin printed (so it appears once
+      // per company, on the earliest cycle they show up in — mirrors the "merged-cell" look).
+      const payinShownFor = new Set();
+      const cycleRows = [];
+
+      // Running grand-total accumulators
+      let gtSettleAmt = 0, gtChargeback = 0, gtInternal = 0, gtFinal = 0;
+
+      cyclesPresent.forEach((id) => {
+        const preset = RECON_CYCLE_PRESETS.find((p) => p.id === id);
         const settlementDate = preset.settleNextDay ? formatDateLong(addDaysToIso(reconDate, 1)) : dayDate;
-        return {
-          Date: dayDate,
-          Cycle: id,
-          StartTime: preset.startLabel,
-          EndTime: preset.endLabel,
-          Settlement_Date: settlementDate,
-          // Payin shows the day's total internal payin on the first row only, blank on the rest
-          // (matches the "merged-cell" look in the user's template).
-          Payin: 0,                  // placeholder; we fill the first row below
-          Settlement_Amount: r2(settleAmt),
-          ChargeBack: r2(chargeback),
-          InternalCharge: r2(internalCharge),
-          Settlement: r2(finalSettlement),
-        };
+
+        // Per-company aggregation within this cycle
+        const compMap = new Map();
+        bankRows
+          .filter((r) => r._cycle === id)
+          .filter((r) => reconMerchantFilter === "__all__" || r.merchant === reconMerchantFilter)
+          .forEach((r) => {
+            const key = normCompany(r.name) || r.name;
+            const existing = compMap.get(key);
+            if (existing) {
+              existing.settle += r.settle || 0;
+              existing.chargeback += r.chargeback || 0;
+            } else {
+              compMap.set(key, { name: r.name, settle: r.settle || 0, chargeback: r.chargeback || 0 });
+            }
+          });
+        if (compMap.size === 0) return;
+
+        const companies = [...compMap.values()].sort((a, b) => b.settle - a.settle);
+        let cycSettle = 0, cycCharge = 0, cycInternal = 0, cycFinal = 0, cycPayin = 0;
+
+        companies.forEach((c) => {
+          const internal = c.settle * (CHARGE_RATE / 100) * (1 + GST_RATE / 100);
+          const finalAmt = c.settle - c.chargeback - internal;
+          const compKey = normCompany(c.name);
+          // Payin appears once per company (on the first cycle they show up)
+          const payinForRow = !payinShownFor.has(compKey) ? (sourcePayinByCompany.get(compKey) || 0) : 0;
+          if (!payinShownFor.has(compKey)) payinShownFor.add(compKey);
+
+          cyclePushRow({
+            Date: dayDate,
+            Cycle: id,
+            StartTime: preset.startLabel,
+            EndTime: preset.endLabel,
+            Settlement_Date: settlementDate,
+            Company: c.name,
+            Payin: payinForRow ? r2(payinForRow) : "",
+            Settlement_Amount: r2(c.settle),
+            ChargeBack: r2(c.chargeback),
+            InternalCharge: r2(internal),
+            Settlement: r2(finalAmt),
+            _kind: "company",
+          });
+
+          cycSettle += c.settle;
+          cycCharge += c.chargeback;
+          cycInternal += internal;
+          cycFinal += finalAmt;
+          cycPayin += payinForRow;
+        });
+
+        // Cycle subtotal row
+        cyclePushRow({
+          Date: "",
+          Cycle: "",
+          StartTime: "",
+          EndTime: "",
+          Settlement_Date: "",
+          Company: `Cycle ${id} Total`,
+          Payin: cycPayin ? r2(cycPayin) : "",
+          Settlement_Amount: r2(cycSettle),
+          ChargeBack: r2(cycCharge),
+          InternalCharge: r2(cycInternal),
+          Settlement: r2(cycFinal),
+          _kind: "subtotal",
+        });
+
+        gtSettleAmt += cycSettle;
+        gtChargeback += cycCharge;
+        gtInternal += cycInternal;
+        gtFinal += cycFinal;
       });
-      // Show Payin only on the first cycle row, blank on the rest
-      cycleData.forEach((row, i) => { row.Payin = i === 0 ? r2(filteredSourceTotal) : ""; });
-      // Total row
-      const totalSettle = cycleData.reduce((s, r) => s + (typeof r.Settlement_Amount === "number" ? r.Settlement_Amount : 0), 0);
-      const totalChargeback = cycleData.reduce((s, r) => s + (typeof r.ChargeBack === "number" ? r.ChargeBack : 0), 0);
-      const totalInternal = cycleData.reduce((s, r) => s + (typeof r.InternalCharge === "number" ? r.InternalCharge : 0), 0);
-      const totalFinal = cycleData.reduce((s, r) => s + (typeof r.Settlement === "number" ? r.Settlement : 0), 0);
-      cycleData.push({
+
+      function cyclePushRow(r) { cycleRows.push(r); }
+
+      // Grand Total row
+      cycleRows.push({
         Date: "",
         Cycle: "",
         StartTime: "",
         EndTime: "",
-        Settlement_Date: "TOTAL",
+        Settlement_Date: "",
+        Company: "GRAND TOTAL",
         Payin: r2(filteredSourceTotal),
-        Settlement_Amount: r2(totalSettle),
-        ChargeBack: r2(totalChargeback),
-        InternalCharge: r2(totalInternal),
-        Settlement: r2(totalFinal),
+        Settlement_Amount: r2(gtSettleAmt),
+        ChargeBack: r2(gtChargeback),
+        InternalCharge: r2(gtInternal),
+        Settlement: r2(gtFinal),
+        _kind: "grandtotal",
+      });
+
+      // Strip the internal `_kind` field before handing to xlsx, but remember subtotal/grandtotal
+      // row indices so we can style them.
+      const subtotalRowIdxs = [];
+      let grandTotalIdx = -1;
+      const cycleData = cycleRows.map((r, i) => {
+        if (r._kind === "subtotal") subtotalRowIdxs.push(i);
+        if (r._kind === "grandtotal") grandTotalIdx = i;
+        const { _kind, ...rest } = r;
+        return rest;
       });
 
       const cycleSheet = buildSheetWithMeta(cycleData, periodMeta);
@@ -1601,25 +1674,42 @@ export default function App() {
         { wch: 11 },  // C StartTime
         { wch: 11 },  // D EndTime
         { wch: 15 },  // E Settlement_Date
-        { wch: 18 },  // F Payin
-        { wch: 22 },  // G Settlement_Amount
-        { wch: 14 },  // H ChargeBack
-        { wch: 16 },  // I InternalCharge
-        { wch: 18 },  // J Settlement
+        { wch: 42 },  // F Company
+        { wch: 18 },  // G Payin
+        { wch: 22 },  // H Settlement_Amount
+        { wch: 14 },  // I ChargeBack
+        { wch: 16 },  // J InternalCharge
+        { wch: 18 },  // K Settlement
       ];
-      // Number-format money cols F..J
-      const cMoney = ["F", "G", "H", "I", "J"];
+      // Number-format money columns G..K and integer Cycle in B.
+      const cMoney = ["G", "H", "I", "J", "K"];
       for (let row = cycleSheet.dataStartRow; row < cycleSheet.dataStartRow + cycleData.length; row++) {
         for (const col of cMoney) {
           const c = cycleWs[col + row];
           if (c && typeof c.v === "number") { c.z = numFmt; c.t = "n"; }
         }
-        // Cycle column (B) as integer
         const cy = cycleWs["B" + row];
         if (cy && typeof cy.v === "number") { cy.z = "0"; cy.t = "n"; }
       }
-      styleHeaderRow(cycleWs, Object.keys(cycleData[0]).length, cycleSheet.headerRowIdx);
-      styleTotalRow(cycleWs, cycleSheet.totalRowIdx, Object.keys(cycleData[0]).length);
+      const cycleColCount = Object.keys(cycleData[0]).length;
+      styleHeaderRow(cycleWs, cycleColCount, cycleSheet.headerRowIdx);
+      // Apply subtotal style (light yellow) to each "Cycle N Total" row and TOTAL style to Grand Total.
+      const SUBTOTAL_STYLE = {
+        font: { name: "Calibri", sz: 11, bold: true, color: { rgb: "FF7C4A03" } },
+        fill: { patternType: "solid", fgColor: { rgb: "FFFEF3C7" } },
+        alignment: { vertical: "center" },
+      };
+      subtotalRowIdxs.forEach((relIdx) => {
+        const absRow = cycleSheet.headerRowIdx + 1 + relIdx; // 0-based sheet row
+        for (let c = 0; c < cycleColCount; c++) {
+          const ref = XLSX.utils.encode_cell({ r: absRow, c });
+          if (!cycleWs[ref]) cycleWs[ref] = { t: "s", v: "" };
+          cycleWs[ref].s = { ...(cycleWs[ref].s || {}), ...SUBTOTAL_STYLE };
+        }
+      });
+      if (grandTotalIdx >= 0) {
+        styleTotalRow(cycleWs, cycleSheet.headerRowIdx + 1 + grandTotalIdx, cycleColCount);
+      }
       XLSX.utils.book_append_sheet(wb, cycleWs, "Cycle Breakdown");
     }
 
