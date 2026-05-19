@@ -5,12 +5,50 @@ const CHARGE_RATE = 0.35;
 const GST_RATE = 18;
 const GST_OPTIONS = [0, 5, 12, 18, 28];
 
-// Bank settlement cycle presets (used as quick-fills for the recon settlement period).
+// Bank settlement cycle presets — chronological numbering. Cycle 3 settles the next day.
 const RECON_CYCLE_PRESETS = [
-  { id: 1, label: "Cycle 1", range: "4 PM → 12 AM", start: "16:00", end: "23:59" },
-  { id: 2, label: "Cycle 2", range: "12 AM → 6 AM", start: "00:00", end: "05:59" },
-  { id: 3, label: "Cycle 3", range: "6 AM → 4 PM", start: "06:00", end: "15:59" },
+  { id: 1, label: "Cycle 1", range: "12 AM → 6 AM",     start: "00:00", end: "06:00", startLabel: "12:00 AM", endLabel: "06:00 AM", settleNextDay: false },
+  { id: 2, label: "Cycle 2", range: "6 AM → 4 PM",      start: "06:00", end: "16:00", startLabel: "06:00 AM", endLabel: "04:00 PM", settleNextDay: false },
+  { id: 3, label: "Cycle 3", range: "4 PM → 11:59 PM",  start: "16:00", end: "23:59", startLabel: "04:00 PM", endLabel: "11:59 PM", settleNextDay: true  },
 ];
+
+// Detect the cycle number from a bank file's name. Accepts "1.xlsx", "Cycle 1.xlsx",
+// "C1 settlement.csv", "settlement 2 2026-05-16.xlsx", etc.
+function detectBankFileCycle(filename) {
+  if (!filename) return null;
+  const base = filename.replace(/\.(csv|xlsx?|xls)$/i, "");
+  const patterns = [
+    /^([123])(?:[\b.\-_ ]|$)/,         // leading 1/2/3
+    /\bcycle[\s_-]?([123])\b/i,        // "Cycle 1", "cycle_2"
+    /\bc([123])\b/i,                    // "C1"
+    /\b([123])(?:st|nd|rd)\b/i,         // "1st", "2nd", "3rd"
+    /\b([123])\b/,                      // bare 1/2/3 anywhere
+  ];
+  for (const re of patterns) {
+    const m = base.match(re);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (n >= 1 && n <= 3) return n;
+    }
+  }
+  return null;
+}
+
+// Add days to an ISO yyyy-mm-dd date string. Timezone-safe (uses UTC throughout)
+// so a date like "2026-05-16" + 1 day always returns "2026-05-17", regardless of the
+// browser's local timezone.
+function addDaysToIso(iso, days) {
+  if (!iso) return "";
+  const parts = iso.split("-").map((s) => parseInt(s, 10));
+  if (parts.length !== 3 || parts.some(isNaN)) return iso;
+  const [y, m, d] = parts;
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() + days);
+  const yy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
 
 // "2026-05-15" → "15-May-2026"
 function formatDateLong(iso) {
@@ -1046,6 +1084,8 @@ export default function App() {
       return;
     }
     const reader = new FileReader();
+    // Detect the cycle (1/2/3) from the filename — see RECON_CYCLE_PRESETS.
+    const detectedCycle = detectBankFileCycle(file.name);
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target.result);
@@ -1122,6 +1162,7 @@ export default function App() {
             chargeback,
             netSettle,
             _sourceFile: file.name,
+            _cycle: detectedCycle,
           });
         }
         if (out.length === 0) {
@@ -1132,7 +1173,7 @@ export default function App() {
         setBankRows((prev) => [...prev.filter((r) => r._sourceFile !== file.name), ...out]);
         setBankFiles((prev) => [
           ...prev.filter((f) => f.name !== file.name),
-          { name: file.name, rowCount: out.length },
+          { name: file.name, rowCount: out.length, cycle: detectedCycle },
         ]);
       } catch (err) {
         setBankError("Failed to parse file: " + err.message);
@@ -1489,6 +1530,98 @@ export default function App() {
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Summary");
+
+    // ----- Cycle Breakdown sheet -----
+    // Group bank rows by detected cycle (1/2/3) and emit one row per cycle showing
+    // Date | Cycle | StartTime | EndTime | Settlement_Date | Payin | Settlement_Amount
+    // | ChargeBack | InternalCharge | Settlement.
+    // Respects the merchant filter (so it's per-merchant when one is selected).
+    const cyclesPresent = [1, 2, 3].filter((id) => {
+      return bankRows.some((r) => r._cycle === id && (reconMerchantFilter === "__all__" || r.merchant === reconMerchantFilter));
+    });
+    if (cyclesPresent.length > 0) {
+      const dayDate = formatDateLong(reconDate);
+      // Payin for this recon period = source total (respect merchant filter when set)
+      const filteredSourceTotal = reconMerchantFilter === "__all__"
+        ? sourceRows.reduce((s, r) => s + (r.amount || 0), 0)
+        : sourceRows.filter((r) => r.merchant === reconMerchantFilter).reduce((s, r) => s + (r.amount || 0), 0);
+      const cycleData = cyclesPresent.map((id) => {
+        const preset = RECON_CYCLE_PRESETS.find((p) => p.id === id);
+        const rowsForCycle = bankRows.filter((r) => {
+          if (r._cycle !== id) return false;
+          if (reconMerchantFilter !== "__all__" && r.merchant !== reconMerchantFilter) return false;
+          return true;
+        });
+        const settleAmt = rowsForCycle.reduce((s, r) => s + (r.settle || 0), 0);
+        const chargeback = rowsForCycle.reduce((s, r) => s + (r.chargeback || 0), 0);
+        // Internal charge = our effective rate (CHARGE_RATE + GST_RATE on charge) applied to settle.
+        const internalCharge = settleAmt * (CHARGE_RATE / 100) * (1 + GST_RATE / 100);
+        const finalSettlement = settleAmt - chargeback - internalCharge;
+        const settlementDate = preset.settleNextDay ? formatDateLong(addDaysToIso(reconDate, 1)) : dayDate;
+        return {
+          Date: dayDate,
+          Cycle: id,
+          StartTime: preset.startLabel,
+          EndTime: preset.endLabel,
+          Settlement_Date: settlementDate,
+          // Payin shows the day's total internal payin on the first row only, blank on the rest
+          // (matches the "merged-cell" look in the user's template).
+          Payin: 0,                  // placeholder; we fill the first row below
+          Settlement_Amount: r2(settleAmt),
+          ChargeBack: r2(chargeback),
+          InternalCharge: r2(internalCharge),
+          Settlement: r2(finalSettlement),
+        };
+      });
+      // Show Payin only on the first cycle row, blank on the rest
+      cycleData.forEach((row, i) => { row.Payin = i === 0 ? r2(filteredSourceTotal) : ""; });
+      // Total row
+      const totalSettle = cycleData.reduce((s, r) => s + (typeof r.Settlement_Amount === "number" ? r.Settlement_Amount : 0), 0);
+      const totalChargeback = cycleData.reduce((s, r) => s + (typeof r.ChargeBack === "number" ? r.ChargeBack : 0), 0);
+      const totalInternal = cycleData.reduce((s, r) => s + (typeof r.InternalCharge === "number" ? r.InternalCharge : 0), 0);
+      const totalFinal = cycleData.reduce((s, r) => s + (typeof r.Settlement === "number" ? r.Settlement : 0), 0);
+      cycleData.push({
+        Date: "",
+        Cycle: "",
+        StartTime: "",
+        EndTime: "",
+        Settlement_Date: "TOTAL",
+        Payin: r2(filteredSourceTotal),
+        Settlement_Amount: r2(totalSettle),
+        ChargeBack: r2(totalChargeback),
+        InternalCharge: r2(totalInternal),
+        Settlement: r2(totalFinal),
+      });
+
+      const cycleSheet = buildSheetWithMeta(cycleData, periodMeta);
+      const cycleWs = cycleSheet.ws;
+      cycleWs["!cols"] = [
+        { wch: 13 },  // A Date
+        { wch: 7 },   // B Cycle
+        { wch: 11 },  // C StartTime
+        { wch: 11 },  // D EndTime
+        { wch: 15 },  // E Settlement_Date
+        { wch: 18 },  // F Payin
+        { wch: 22 },  // G Settlement_Amount
+        { wch: 14 },  // H ChargeBack
+        { wch: 16 },  // I InternalCharge
+        { wch: 18 },  // J Settlement
+      ];
+      // Number-format money cols F..J
+      const cMoney = ["F", "G", "H", "I", "J"];
+      for (let row = cycleSheet.dataStartRow; row < cycleSheet.dataStartRow + cycleData.length; row++) {
+        for (const col of cMoney) {
+          const c = cycleWs[col + row];
+          if (c && typeof c.v === "number") { c.z = numFmt; c.t = "n"; }
+        }
+        // Cycle column (B) as integer
+        const cy = cycleWs["B" + row];
+        if (cy && typeof cy.v === "number") { cy.z = "0"; cy.t = "n"; }
+      }
+      styleHeaderRow(cycleWs, Object.keys(cycleData[0]).length, cycleSheet.headerRowIdx);
+      styleTotalRow(cycleWs, cycleSheet.totalRowIdx, Object.keys(cycleData[0]).length);
+      XLSX.utils.book_append_sheet(wb, cycleWs, "Cycle Breakdown");
+    }
 
     // ----- Per-merchant detail sheets -----
     // normCompany is already defined at the component level for fuzzy company matching.
@@ -3498,10 +3631,19 @@ export default function App() {
                               gap: 8,
                             }}
                           >
-                            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={f.name}>
-                              <strong>🏦 {f.name}</strong>
-                              <span style={{ marginLeft: 6, opacity: 0.8 }}>
-                                {f.rowCount} cos · {formatINR(fileTotal)}
+                            <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 6 }} title={f.name}>
+                              {f.cycle ? (
+                                <span style={{ padding: "2px 7px", borderRadius: 5, background: "#065f46", color: "#fff", fontSize: 10, fontWeight: 700, letterSpacing: ".3px" }}>
+                                  C{f.cycle}
+                                </span>
+                              ) : (
+                                <span style={{ padding: "2px 7px", borderRadius: 5, background: "#fef3c7", color: "#92400e", fontSize: 10, fontWeight: 700 }} title="No cycle detected — name your file 1/2/3 or 'Cycle 1' etc.">
+                                  C?
+                                </span>
+                              )}
+                              <strong>{f.name}</strong>
+                              <span style={{ opacity: 0.8 }}>
+                                · {f.rowCount} cos · {formatINR(fileTotal)}
                               </span>
                             </div>
                             <button
