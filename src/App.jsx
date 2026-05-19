@@ -222,10 +222,10 @@ const MASTER_DATA = [
   { mid: "", merchant: "Nitin", company: "SHREE KHATU SHYAM ENTERPRISES", moa: "", incorporation: "", gstNumber: "" },
   { mid: "", merchant: "Nitin", company: "CIRCUTECH SYSTEMS PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
   { mid: "MER0000000031217", merchant: "Nilesh", company: "REVOLUTIONARY ONLINE PRIVATE LIMITED", moa: "", incorporation: "22-10-2025", gstNumber: "19AAPCR1479N1ZF" },
-  { mid: "MER0000000031190", merchant: "KJ", company: "VISINORYVISTA TECH PRIAVTE LIMITED", moa: "DONE", incorporation: "15-01-2025", gstNumber: "27AAKCV6794R1ZZ" },
+  { mid: "MER0000000031190", merchant: "KJ", company: "VISIONARYVISTA TECH PRIVATE LIMITED", moa: "DONE", incorporation: "15-01-2025", gstNumber: "27AAKCV6794R1ZZ" },
   { mid: "MER0000000031205", merchant: "KJ", company: "DULAARAA PUBLICITY AND MEDIA PRIVATE LIMITED", moa: "", incorporation: "29-08-2024", gstNumber: "09AALCD0872F1ZK" },
   { mid: "", merchant: "KJ", company: "MATILEO ENTERPRISES PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
-  { mid: "", merchant: "KJ", company: "WENSET INFOCOM PRIAVTE LIMITED", moa: "", incorporation: "", gstNumber: "" },
+  { mid: "", merchant: "KJ", company: "WENSET INFOCOM PRIVATE LIMITED", moa: "", incorporation: "", gstNumber: "" },
   { mid: "", merchant: "Aryan", company: "DIGITALFORGE TECHNOLOGIES (OPC) PRIVATE LIMITED", moa: "", incorporation: "01-01-2026", gstNumber: "09AAMCD3121C1Z1" },
   { mid: "MER0000000031272", merchant: "Nilesh", company: "RAGU SALES AND DISTRIBUTION PRIVATE LIMITED", moa: "DONE", incorporation: "27-06-2025", gstNumber: "08AAOCR7806C1Z7" },
   { mid: "MER0000000031267", merchant: "AJ", company: "ADDIRE BEYOND STYLE PRIVATE LIMITED", moa: "", incorporation: "14-11-2017", gstNumber: "09AAQCA2244P1Z3" },
@@ -1000,7 +1000,9 @@ export default function App() {
   // Normalize a company name: strip "private limited" / "pvt ltd" variants,
   // common typos ("privated", "limte..."), punctuation, and collapse spaces.
   const normCompany = (s) => String(s || "").toLowerCase()
-    .replace(/\b(priv\w*|pvt\w*|ltd\w*|limited|limte\w*|opc|llp)\.?\b/g, "")
+    // Strip "private" + common typos (priavte, privte, privae, prvate), "pvt" variants,
+    // "ltd" variants, "limited", "limted", "opc", "llp".
+    .replace(/\b(priv\w*|priav\w*|prvt\w*|prvate\w*|pvt\w*|ltd\w*|limited|limte\w*|opc|llp)\.?\b/g, "")
     .replace(/[.,&()]/g, "")
     .replace(/\s+/g, " ")
     .trim();
